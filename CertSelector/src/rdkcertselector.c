@@ -774,7 +774,7 @@ static unsigned long filetime( const char *fname ) {
 }
 
 
-#if defined(UNIT_TESTS) || defined(GTEST_ENABLE)
+#if defined(UNIT_TESTS) || defined(GTEST_ENABLE) || defined(L2_ENABLE)
 #include "unit_test.h"
 
 #define UTDIR "./ut"

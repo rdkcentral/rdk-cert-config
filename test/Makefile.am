@@ -1,4 +1,4 @@
-# Copyright 2024 Comcast Cable Communications Management, LLC
+# Copyright 2025 Comcast Cable Communications Management, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,11 +15,4 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-if CSPC_RDKCONFIG_SUPPORT_ENABLED
-SUBDIRS = CertSelector 
-else
-SUBDIRS = RdkConfigApi CertSelector
-endif
-if CSPC_L2_TEST
-SUBDIRS += test
-endif
+SUBDIRS = l2-sampleapp

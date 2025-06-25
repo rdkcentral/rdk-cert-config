@@ -31,6 +31,7 @@ GTEST_SUPPORT_ENABLED=false
 GTEST_ENABLE_FLAG=""
 CSPC_RDKCONFIG_SUPPORT_ENABLED=false
 CSPC_RDKCONFIG_ENABLE_FLAG=""
+CSPC_L2_TEST=false
 # Checks for following programs.
 AC_PROG_CC
 AM_PROG_CC_C_O
@@ -90,6 +91,19 @@ AC_ARG_ENABLE([cspcrdkconfig],
              [echo "cspcrdkconfig is disabled"])
 AM_CONDITIONAL([CSPC_RDKCONFIG_SUPPORT_ENABLED], [test x$CSPC_RDKCONFIG_SUPPORT_ENABLED = xtrue])
 
+#set condition for l2 support
+AC_ARG_ENABLE([l2testing],
+             AS_HELP_STRING([--enable-l2testing],[enable l2 testing (default is no)]),
+             [
+               case "${enableval}" in
+                yes) CSPC_L2_TEST=true
+                     L2_TEST_FLAG="-DL2_ENABLE" ;;
+                no)  CSPC_L2_TEST=false AC_MSG_ERROR([l2 support is disabled]);;
+                 *) AC_MSG_ERROR([bad value ${enableval} for --enable-l2testing ]);;
+               esac
+             ],
+             [echo "l2 is disabled"])
+AM_CONDITIONAL([CSPC_L2_TEST], [test x$CSPC_L2_TEST = xtrue])
 # Check for necessary programs
 AC_PROG_CXX
 
@@ -122,6 +136,8 @@ AC_CONFIG_FILES([
      ])
 AM_COND_IF([CSPC_RDKCONFIG_SUPPORT_ENABLED],[],[AC_CONFIG_FILES([RdkConfigApi/Makefile RdkConfigApi/src/Makefile])])
 fi
+
+AM_COND_IF([CSPC_L2_TEST],[AC_CONFIG_FILES([test/Makefile test/l2-sampleapp/Makefile])],[])
 
 if test x$GTEST_SUPPORT_ENABLED == xtrue; then
 # Checks for library functions.

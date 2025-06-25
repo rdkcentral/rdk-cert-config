@@ -18,7 +18,7 @@
 # Automake options
 AUTOMAKE_OPTIONS = foreign
 
-AM_CPPFLAGS = -I$(top_srcdir)/CertSelector/include
+AM_CPPFLAGS = -I$(top_srcdir)/CertSelector/include -DL2_ENABLE
 if !CSPC_RDKCONFIG_SUPPORT_ENABLED
 AM_CPPFLAGS += -I$(top_srcdir)/RdkConfigApi/include
 endif
