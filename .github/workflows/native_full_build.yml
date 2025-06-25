@@ -1,0 +1,22 @@
+name: Build Component in Native Environment
+
+on:
+  pull_request:
+    branches: [ develop , main , topic/RDK-56725 ]
+    paths: ['**/*.c', '**/*.cpp', '**/*.cc', '**/*.cxx', '**/*.h', '**/*.hpp', '**/*.sh']
+
+jobs:
+  build-rdkcertconfig-on-pr:
+    name: Build rdk-cert-config component in github rdkcentral
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: native build
+        run: |
+          chmod +x cov_build.sh
+          sh -e cov_build.sh
