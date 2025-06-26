@@ -18,7 +18,7 @@
 # Automake options
 AUTOMAKE_OPTIONS = foreign
 
-AM_CPPFLAGS = -I$(top_srcdir)/CertSelector/include -DL2_ENABLE
+AM_CPPFLAGS = -I$(top_srcdir)/CertSelector/include 
 if !CSPC_RDKCONFIG_SUPPORT_ENABLED
 AM_CPPFLAGS += -I$(top_srcdir)/RdkConfigApi/include
 endif
@@ -27,6 +27,10 @@ AM_CFLAGS =  -Werror -Wall -Os $(CFLAGS)
 
 if RDKLOGGER
 AM_CFLAGS += -DRDKLOGGER
+endif
+
+if CSPC_L2_TEST
+AM_CFLAGS += $(L2_TEST_FLAG)
 endif
 
 lib_LTLIBRARIES = libRdkCertSelector.la
