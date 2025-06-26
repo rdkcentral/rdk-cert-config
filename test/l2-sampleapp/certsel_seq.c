@@ -290,3 +290,38 @@ unsigned long get_file_timestamp( const char *fname ) {
 	}
 	return retval;
 }
+
+int rdkconfig_getStr( char **sbuff, size_t *sbuffsz, const char *refname ) { // MOCK
+	int retval = RDKCONFIG_OK;
+	char *membuff = (char *)malloc( GETSZ );
+	if ( membuff == NULL ) {
+		return RDKCONFIG_FAIL;
+	}
+	memset( membuff, '.', GETSZ );
+	if ( strcmp( refname, UTCRED1 ) == 0 ) {
+		strcpy( membuff, UTPASS1 );
+	} else if ( strcmp( refname, UTCRED2 ) == 0 ) {
+		strcpy( membuff, UTPASS2 );
+		// passcode sometimes ends with \n, test case where it should be removed
+		strcat( membuff, "\n" );
+	} else if ( strcmp( refname, UTCRED3 ) == 0 ) {
+		strcpy( membuff, UTPASS3 );
+	} else if ( strcmp( refname, UTCREDALPHA ) == 0 ) {
+		strcpy( membuff, UTPASSALPHA );
+	} else {
+		retval =  RDKCONFIG_FAIL;
+	}
+	if ( retval == RDKCONFIG_OK ) {
+		*sbuff = membuff;
+		*sbuffsz = strlen( (char *)membuff )+1; // buffer size includes null terminator
+	} else {
+		free( membuff );
+	}
+	return retval;
+}
+
+int rdkconfig_freeStr( char **sbuff, size_t sbuffsz ) { // MOCK
+	free( *sbuff );
+	*sbuff = NULL;
+	return RDKCONFIG_OK;
+}

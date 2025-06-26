@@ -71,6 +71,10 @@ int run_badseq1();
 #define UTPASS3 UTCRED3 "pass"
 #define UTPASSALPHA UTCREDALPHA "pass"
 
+#define GETSZ 50
+#define RDKCONFIG_OK 0
+#define RDKCONFIG_FAIL 1 // general failure
+
 #define L2_TST( a ) { \
         long tst=(long)(a); \
         if ( tst!=0 ) { fprintf(stderr,"act:%ld\n",tst); \

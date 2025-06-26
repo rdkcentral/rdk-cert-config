@@ -29,10 +29,6 @@ if RDKLOGGER
 AM_CFLAGS += -DRDKLOGGER
 endif
 
-if CSPC_L2_TEST
-AM_CFLAGS += $(L2_TEST_FLAG)
-endif
-
 lib_LTLIBRARIES = libRdkCertSelector.la
 
 libRdkCertSelector_la_SOURCES = rdkcertselector.c
