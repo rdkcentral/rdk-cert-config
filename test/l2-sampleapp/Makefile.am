@@ -1,4 +1,4 @@
-# Copyright 2024 Comcast Cable Communications Management, LLC
+# Copyright 2025 Comcast Cable Communications Management, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,11 +15,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-if CSPC_RDKCONFIG_SUPPORT_ENABLED
-SUBDIRS = CertSelector 
-else
-SUBDIRS = RdkConfigApi CertSelector
-endif
-if CSPC_L2_TEST
-SUBDIRS += test
-endif
+
+bin_PROGRAMS = l2sampleapp
+
+AM_CFLAGS =  -Werror -Wall -Os $(CFLAGS) -I$(top_srcdir)/include/
+
+l2sampleapp_SOURCES = certsel_main.c  certsel_seq.c
+l2sampleapp_la_LDFLAGS = -no-undefined -shared
+l2sampleapp_LDADD = ../../CertSelector/src/libRdkCertSelector.la ../../CertSelector/src/.libs/libRdkCertSelector.so
