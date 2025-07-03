@@ -21,6 +21,7 @@
 #include <string.h>
 #include "rdkconfig.h"
 
+
 // rdkconfig_get - get credential by reference name, allocate space, fill buffer
 // return new buffer and size of data (actual memory buffer may be larger)
 // return value: RDKCONFIG_OK or RDKCONFIG_FAIL
