@@ -19,7 +19,7 @@
 AUTOMAKE_OPTIONS = foreign
 
 AM_CPPFLAGS = -I$(top_srcdir)/RdkConfigApi/include
-AM_CFLAGS = -Werror -Wall -Os $(CFLAGS)
+AM_CFLAGS = -Werror -Wall -Os -Wno-format $(CFLAGS)
 
 # Source files for GetConfigFile binary
 bin_PROGRAMS = GetConfigFile
