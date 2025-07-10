@@ -46,7 +46,7 @@ int rdkconfig_getStr( char **sbuff, size_t *sbuffsz, const char *refname ) {
 //   it is retrieved using rdkconfig_getStr)
 int rdkconfig_set( const char *refname, uint8_t *sbuff, size_t sbuffsz ) {
 	/* This is stub function, Needs implemetation */
-        printf("rdkconfig_set not implemented yet\n");
+        printf("rdkconfig_set not implemented yet %s\n");
 	return RDKCONFIG_FAIL;
 }
 
