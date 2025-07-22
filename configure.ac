@@ -18,7 +18,7 @@ AC_PREREQ([2.65])
 
 AC_INIT([libcertconfig], [1.0], [piramanayagammoneka_lakshmi.com])
 AC_CONFIG_SRCDIR([CertSelector])
-
+AC_CONFIG_SRCDIR([setTlsCert])
 AC_ENABLE_SHARED
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])
@@ -133,6 +133,8 @@ AC_CONFIG_FILES([
      Makefile
      CertSelector/Makefile
      CertSelector/src/Makefile
+     setTlsCert/Makefile
+     setTlsCert/src/Makefile
      ])
 AM_COND_IF([CSPC_RDKCONFIG_SUPPORT_ENABLED],[],[AC_CONFIG_FILES([RdkConfigApi/Makefile RdkConfigApi/src/Makefile])])
 fi
