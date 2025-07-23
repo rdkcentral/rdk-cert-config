@@ -135,9 +135,9 @@ rdkcertselectorStatus_t rdkcertselector_getCertForCurl( CURL *curl, rdkcertselec
 	    uint8_t keyID = 42;
 	    ERROR_LOG("%s: Size of pkey = %zu bytes\n", __FUNCTION__, sizeof(pkey));
 	    memset( pkey, 0 , sizeof(pkey));
-	    pEngine = rdkcertselector_getEngine(certsel);
-            curl_code = curl_easy_setopt(curl, CURLOPT_SSLENGINE, pEngine);
-            if ( curl_code != CURLE_OK ) return certselectorBadArgument;
+	    //pEngine = rdkcertselector_getEngine(certsel);
+            curl_code = curl_easy_setopt(curl, CURLOPT_SSLENGINE, "pkcs11");
+	    if ( curl_code != CURLE_OK ) return certselectorBadArgument;
             curl_code = curl_easy_setopt(curl, CURLOPT_SSLCERTTYPE, "ENG");
             if ( curl_code != CURLE_OK ) return certselectorBadArgument;
             getCertUri( CertUri, keyID );  // modify URI for cert only, "pkcs11:id=%42;type=cert"
