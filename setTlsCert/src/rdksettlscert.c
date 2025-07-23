@@ -115,7 +115,7 @@ rdkcertselectorStatus_t rdkcertselector_getCertForCurl( CURL *curl, rdkcertselec
     char *pCertURI = NULL;
     char *pEngine=NULL;
     uint8_t pkey[32];
-    static const uint8_t refkey[31] = {0};
+    //static const uint8_t refkey[31] = {0};
     CURLcode curl_code = CURLE_OK;
     rdkcertselectorStatus_t cs_status = rdkcertselector_getCert( certsel, &pCertURI, &pPasswd);
     if ( cs_status != certselectorOk) {
