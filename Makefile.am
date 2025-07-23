@@ -16,9 +16,9 @@
 #
 
 if CSPC_RDKCONFIG_SUPPORT_ENABLED
-SUBDIRS = CertSelector 
+SUBDIRS = CertSelector setTlsCert
 else
-SUBDIRS = RdkConfigApi CertSelector
+SUBDIRS = RdkConfigApi CertSelector setTlsCert
 endif
 if CSPC_L2_TEST
 SUBDIRS += test
