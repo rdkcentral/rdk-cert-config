@@ -127,11 +127,13 @@ rdkcertselectorStatus_t rdkcertselector_getCertForCurl( CURL *curl, rdkcertselec
     if ( strncmp( pCertFile, FILESCHEME, sizeof(FILESCHEME) - 1 ) == 0 ) {
         pCertFile += (sizeof(FILESCHEME) - 1);
 	if(!open_read_privatekey( pCertFile,pPasswd, pkey ) ) return certselectorBadArgument;
-	if ( memcmp( pkey, refkey, sizeof( refkey ) )) {
+	//if ( memcmp( pkey, refkey, sizeof( refkey ) )) {
+	  if ( strstr(pCertFile, "staticXpkiCrt.pk12") != NULL) { 
             size_t len = strlen(pCertFile) + 1;
             char CertUri[len];
             char KeyUri[len];
-	    uint8_t keyID = pkey[31];
+	    uint8_t keyID = 42;
+	    ERROR_LOG("%s: Size of pkey = %zu bytes\n", __FUNCTION__, sizeof(pkey));
 	    memset( pkey, 0 , sizeof(pkey));
 	    pEngine = rdkcertselector_getEngine(certsel);
             curl_code = curl_easy_setopt(curl, CURLOPT_SSLENGINE, pEngine);
