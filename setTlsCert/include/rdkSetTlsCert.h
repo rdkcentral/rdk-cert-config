@@ -34,20 +34,10 @@ extern "C" {
  * limitations under the License.
 */
 
-/**
- *  Sets status of MTLS connection using the cert.
- *  API will wipe the passcode for the cert used for connection.
- *  In @param connectHandle; cert instance object handle for the connection.
- *  In @param usgType; usage type MTLS/STATERED/D2D
- *  In @param connectStat; connection status using the cert.
- *  @return "rdkcertselectorRetry_t"; 0/NORETRY and 1/RETRY for retrying with next cert.
- *  if the cert used for connection is a staic fallabck cert, then API should return NORETRY.
- *  if the cert is an dynamic operational cert, and connection failed with cert/tls errors.
-**/
 #define CS_PATH_MAX 256
 #define FILESCHEME "file://"
 #define MAX_KEY_LEN 512
-rdkcertselectorRetry_t rdkcertselector_setCurlStatus(rdkcertselector_h thiscertsel, unsigned int curlStat, const char *logEndpoint );
+rdkcertselectorStatus_t rdkcertselector_getCertForCurl( CURL *curl, rdkcertselector_h certsel );
 
 
 #ifdef __cplusplus
