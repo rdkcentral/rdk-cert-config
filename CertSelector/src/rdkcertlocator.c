@@ -138,6 +138,7 @@ rdkcertlocator_h rdkcertlocator_new(const char *certsel_path, const char *hrotpr
   // get engine from hrot properties
   // grab the hrot engine
   char hrotline[MAX_LINE_LENGTH+1];
+  hrotline[MAX_LINE_LENGTH]='\0';
 
   FILE *hrotfp = fopen( hrotprop_path, "r" );
   if ( hrotfp == NULL) {
