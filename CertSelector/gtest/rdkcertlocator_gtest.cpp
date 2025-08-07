@@ -172,6 +172,11 @@ TEST_F(CertLocatorNewTest, ValidCases) {
   // Case 6: Valid new, but engine not set (if hrot file is too long)
   EXPECT_NE(nullptr, tstcl1 = rdkcertlocator_new(certsel_path, HROT_PROP_LONG));
   EXPECT_STREQ(tstcl1->hrotEngine, "");
+
+  //Casr 7: hrot line too long 
+  EXPECT_NE(nullptr, tstcl1 = rdkcertlocator_new(certsel_path, UTDIR "/fixbufferhrot.properties"));
+  EXPECT_STREQ(tstcl1->hrotEngine, "");
+    
   rdkcertlocator_free(&tstcl1);
 }
 
