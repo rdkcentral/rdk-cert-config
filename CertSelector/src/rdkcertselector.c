@@ -180,8 +180,8 @@ rdkcertselector_h rdkcertselector_new(const char *certsel_path, const char *hrot
 
   // get engine from hrot properties
   // grab the hrot engine
-  char hrotline[MAX_LINE_LENGTH+2]; // one extra to check for trunctation
-  hrotline[MAX_LINE_LENGTH]='1';
+  char hrotline[MAX_LINE_LENGTH + 2]; // one extra to check for trunctation
+  hrotline[MAX_LINE_LENGTH + 1]='1';
   FILE *hrotfp = fopen( hrotprop_path, "r" );
   if ( hrotfp == NULL) {
     ERROR_LOG( " %s:hrot file, %s, not found\n", __FUNCTION__, hrotprop_path );
@@ -192,7 +192,7 @@ rdkcertselector_h rdkcertselector_new(const char *certsel_path, const char *hrot
     while ( fgets( hrotline, sizeof(hrotline), hrotfp ) ) {
 
       // check if line from file was truncated
-      if ( hrotline[MAX_LINE_LENGTH] != '1' ) {
+      if ( hrotline[MAX_LINE_LENGTH + 1] != '1' ) {
         ERROR_LOG( " %s: hrot line too long\n", __FUNCTION__ );
         continue;
       } else {
