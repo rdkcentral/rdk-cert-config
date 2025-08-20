@@ -410,10 +410,10 @@ if (engine != NULL) {
 }
 
 do {
-    rdkcertselectorStatus_t certStat = rdkcertselector_getCert(thisCertSel, &certUri, &certPass);
+    rdkcertselectorStatus_t certStat = rdkcertselector_getCert(thisCertSel, &certUri, &certPass);    
     curl_easy_setopt(curl, CURLOPT_SSLCERTTYPE, P12/PEM);
-    curl_easy_setopt(curl, CURLOPT_SSLCERT, cert);
-    curl_easy_setopt(curl, CURLOPT_KEYPASSWD, password);
+    curl_easy_setopt(curl, CURLOPT_SSLCERT, certUri);  // Extract the file path by removing the "file://" scheme from certUri
+    curl_easy_setopt(curl, CURLOPT_KEYPASSWD, certPass);
     curl_code = curl_easy_perform(curl);
 } while (rdkcertselector_setCurlStatus(thisCertSel, curl_code, "https://end.point") == TRY_ANOTHER);
 
@@ -488,3 +488,4 @@ Testing can be done with simple file manipulation because real certs are not req
 # **References** 
 1. <https://curl.se/libcurl/c/curl_easy_perform.html>
 1. <https://curl.se/libcurl/c/libcurl-errors.html>
+
