@@ -61,6 +61,7 @@ echo "TSTGRP1" > ./ut/tst1miss2.cfg
 echo "TSTGRP1,FRST," > ./ut/tst1miss3.cfg
 echo "TSTGRP1,FRST,TMP" > ./ut/tst1miss4.cfg
 echo "TSTGRP1,FRST,TMP,file://./ut/tst1first.tmp," > ./ut/tst1miss5.cfg
+{ echo -n "hrotengine="; yes A | tr -d '\n' | head -c 1013; echo; } > ./ut/fixbufferhrot.properties
 make
 
 

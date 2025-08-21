@@ -137,8 +137,8 @@ rdkcertlocator_h rdkcertlocator_new(const char *certsel_path, const char *hrotpr
 
   // get engine from hrot properties
   // grab the hrot engine
-  char hrotline[MAX_LINE_LENGTH+1];
-  hrotline[MAX_LINE_LENGTH]='\0';
+  char hrotline[MAX_LINE_LENGTH + 2];
+  hrotline[MAX_LINE_LENGTH + 1]='1';
 
   FILE *hrotfp = fopen( hrotprop_path, "r" );
   if ( hrotfp == NULL) {
@@ -150,7 +150,7 @@ rdkcertlocator_h rdkcertlocator_new(const char *certsel_path, const char *hrotpr
     while ( fgets( hrotline, sizeof(hrotline), hrotfp ) ) {
 
       // check if line from file was truncated
-      if ( hrotline[MAX_LINE_LENGTH] != '\0' ) {
+      if ( hrotline[MAX_LINE_LENGTH + 1] != '1' ) {
         ERROR_LOG( " %s: hrot line too long\n", __FUNCTION__ );
         continue;
       } else {

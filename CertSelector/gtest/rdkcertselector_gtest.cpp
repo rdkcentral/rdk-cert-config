@@ -402,6 +402,11 @@ TEST(RdkCertSelectorNewTest, CertSelectorNewTest) {
     tstcs1 = rdkcertselector_new(certsel_path, HROT_PROP_LONG, GRP1);
     ASSERT_NE(tstcs1, nullptr);
     EXPECT_STREQ(tstcs1->hrotEngine, "");
+
+	//Casr 7: hrot line too long 
+    EXPECT_NE(nullptr, tstcs1 = rdkcertselector_new(certsel_path, UTDIR "/fixbufferhrot.properties", GRP1));
+    EXPECT_STREQ(tstcs1->hrotEngine, "");
+	
     rdkcertselector_free(&tstcs1);
 }
 // Test case for testing rdkcertselector_getEngine function
