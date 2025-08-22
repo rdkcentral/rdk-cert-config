@@ -319,7 +319,7 @@ rdkcertlocatorStatus_t rdkcertlocator_locateCert( rdkcertlocator_h thiscertloc, 
     ERROR_LOG( " %s:credential reference [%s] not found (%u)\n", __FUNCTION__, thiscertloc->certCredRef, retval );
   }
   EXTRA_DEBUG_LOG( " %s:returning %d\n", __FUNCTION__, retval );
-  ERROR_LOG( " %s:  - %s\n", __FUNCTION__, pc, *certPass );
+  ERROR_LOG( " %s:  - %s\n", __FUNCTION__, *certPass );
   return retval;
 } // rdkcertlocator_locateCert( )
 
