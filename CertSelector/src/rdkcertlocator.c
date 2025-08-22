@@ -243,7 +243,7 @@ char *rdkcertlocator_getEngine( rdkcertlocator_h thiscertloc ) {
  *  @return 0/certlocatorOk for success, non-zero values for the failure.
 **/
 rdkcertlocatorStatus_t rdkcertlocator_locateCert( rdkcertlocator_h thiscertloc, const char *certRef, char **certUri, char **certPass ) {
-
+  ERROR_LOG( " %s:Entry \n", __FUNCTION__ );
   if ( thiscertloc == NULL ) {
     ERROR_LOG( " %s:null argument\n", __FUNCTION__ );
     return certlocatorBadPointer;
@@ -276,12 +276,15 @@ rdkcertlocatorStatus_t rdkcertlocator_locateCert( rdkcertlocator_h thiscertloc, 
   }
 
   if ( retval == certlocatorOk ) {
+    ERROR_LOG( " %s:get passcode (%u)\n", __FUNCTION__, retval );
     EXTRA_DEBUG_LOG( " %s:get passcode (%u)\n", __FUNCTION__, retval );
     // file exists and is not the same as bad (or was not marked as bad), so get the passcode and return them
     char *pc = NULL;
     size_t pcsz = 0;
     retval = certlocatorFileError; // look for cred file, error out if not found
+    ERROR_LOG( " %s: %s\n", __FUNCTION__, thiscertloc->certCredRef );
     if ( rdkconfig_getStr( &pc, &pcsz, thiscertloc->certCredRef ) == RDKCONFIG_OK ) {
+    ERROR_LOG( " %s: %s - %s\n", __FUNCTION__, pc, thiscertloc->certCredRef );
       if ( pc != NULL ) {
         // don't include any newline at end and don't add an additional null terminator
         if ( pc[pcsz-2] == '\n' ) {
@@ -316,6 +319,7 @@ rdkcertlocatorStatus_t rdkcertlocator_locateCert( rdkcertlocator_h thiscertloc, 
     ERROR_LOG( " %s:credential reference [%s] not found (%u)\n", __FUNCTION__, thiscertloc->certCredRef, retval );
   }
   EXTRA_DEBUG_LOG( " %s:returning %d\n", __FUNCTION__, retval );
+  ERROR_LOG( " %s:  - %s\n", __FUNCTION__, pc, *certPass );
   return retval;
 } // rdkcertlocator_locateCert( )
 
