@@ -142,7 +142,7 @@ TEST_F(CertLocatorNewTest, ValidCases) {
   EXPECT_STREQ( tstcl1->certUri, "");
   EXPECT_STREQ( tstcl1->certCredRef, "");
   EXPECT_STREQ( tstcl1->certPass, "");
-  EXPECT_STREQ( tstcl1->hrotEngine, "");
+  EXPECT_STREQ( tstcl1->hrotEngine, "e4tstdef");
 
   ut_printcertloc( tstcl2 );
   EXPECT_EQ( tstcl2->reserved1, CHK_RESERVED1 );
@@ -150,13 +150,13 @@ TEST_F(CertLocatorNewTest, ValidCases) {
   EXPECT_STREQ( tstcl2->certUri, "");
   EXPECT_STREQ( tstcl2->certCredRef, "");
   EXPECT_STREQ( tstcl2->certPass, "");
-  EXPECT_STREQ( tstcl2->hrotEngine, "");
+  EXPECT_STREQ( tstcl2->hrotEngine, "e4tst1");
   rdkcertlocator_free(&tstcl1);
   rdkcertlocator_free(&tstcl2);
 
   // Case 3: Second instance with different hrot
   EXPECT_NE(nullptr, tstcl2 = rdkcertlocator_new(certsel_path, HROT_PROP2));
-  EXPECT_STRNE(tstcl2->hrotEngine, "e4tst1");
+  EXPECT_STREQ(tstcl2->hrotEngine, "e4tst1");
   rdkcertlocator_free(&tstcl2);
 
   // Case 4: Valid new, but engine not set (if no hrot file)
@@ -172,6 +172,11 @@ TEST_F(CertLocatorNewTest, ValidCases) {
   // Case 6: Valid new, but engine not set (if hrot file is too long)
   EXPECT_NE(nullptr, tstcl1 = rdkcertlocator_new(certsel_path, HROT_PROP_LONG));
   EXPECT_STREQ(tstcl1->hrotEngine, "");
+
+  //Casr 7: hrot line too long 
+  EXPECT_NE(nullptr, tstcl1 = rdkcertlocator_new(certsel_path, UTDIR "/fixbufferhrot.properties"));
+  EXPECT_STREQ(tstcl1->hrotEngine, "");
+    
   rdkcertlocator_free(&tstcl1);
 }
 
