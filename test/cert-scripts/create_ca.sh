@@ -1,0 +1,387 @@
+#!/bin/bash
+# CA Certificate creation script for PKI infrastructure
+# Usage: create_ca.sh --ca-name <CA_NAME> [--parent-ca <PARENT_CA>] [OPTIONS]
+#
+# This script creates a Certificate Authority (CA) certificate.
+# If --ca-name and --parent-ca are the same, it creates a root CA (self-signed)
+# If different, it creates an intermediate CA signed by the parent CA
+#
+# Options:
+#   --ca-name <n>        Name of the CA to create (required)
+#   --parent-ca <n>      Name of the parent CA to sign with (required)
+#                           If same as --ca-name, creates a root CA
+#   --pathlen <NUM>         Path length constraint (default: 2 for root, 1 for intermediate)
+#   --validity <DAYS>       Validity period in days (default: 3650)
+#   --ecc-curve <CURVE>     ECC curve to use (default: prime256v1)
+#                           Options: prime256v1 (P-256), secp384r1 (P-384), secp521r1 (P-521)
+#   --expired               Generate an expired CA certificate
+#   --corrupted             Generate a corrupted CA certificate
+#   --help                  Display this help message
+
+# Import utility functions
+source "$(dirname "$0")/cert_utils.sh"
+
+# Default values
+CA_NAME=""
+PARENT_CA=""
+ECC_CURVE="prime256v1"
+VALIDITY=3650
+PATHLEN=""
+FAILURE_MODE=""
+
+# Parse command line arguments
+parse_args() {
+  if [ $# -eq 0 ]; then
+    echo "Error: Missing required arguments"
+    show_help
+    exit 1
+  fi
+
+  while [[ $# -gt 0 ]]; do
+    key="$1"
+    case $key in
+      --ca-name)
+        CA_NAME="$2"
+        shift 2
+        ;;
+      --parent-ca)
+        PARENT_CA="$2"
+        shift 2
+        ;;
+      --pathlen)
+        PATHLEN="$2"
+        shift 2
+        ;;
+      --validity)
+        VALIDITY="$2"
+        shift 2
+        ;;
+      --ecc-curve)
+        case "$2" in
+          p256|prime256v1)
+            ECC_CURVE="prime256v1"
+            ;;
+          p384|secp384r1)
+            ECC_CURVE="secp384r1"
+            ;;
+          p521|secp521r1)
+            ECC_CURVE="secp521r1"
+            ;;
+          *)
+            echo "Error: Invalid ECC curve specified"
+            echo "Valid options: prime256v1, secp384r1, secp521r1"
+            exit 1
+            ;;
+        esac
+        shift 2
+        ;;
+      --expired)
+        VALIDITY="-365"
+        echo "Setting CA to be expired..."
+        FAILURE_MODE="expired"
+        shift
+        ;;
+      --corrupted)
+        FAILURE_MODE="corrupted"
+        echo "Certificate will be corrupted after creation..."
+        shift
+        ;;
+      --help)
+        show_help
+        exit 0
+        ;;
+      *)
+        echo "Unknown option: $1"
+        show_help
+        exit 1
+        ;;
+    esac
+  done
+
+  # Validate required parameters
+  if [ -z "$CA_NAME" ]; then
+    echo "Error: CA name is required (--ca-name)"
+    exit 1
+  fi
+
+  if [ -z "$PARENT_CA" ]; then
+    echo "Error: Parent CA name is required (--parent-ca)"
+    exit 1
+  fi
+}
+
+show_help() {
+  cat << EOF
+Usage: $0 --ca-name <CA_NAME> --parent-ca <PARENT_CA> [OPTIONS]
+
+This script creates a Certificate Authority (CA) certificate.
+If --ca-name and --parent-ca are the same, it creates a root CA (self-signed)
+If different, it creates an intermediate CA signed by the parent CA
+
+Options:
+  --ca-name <n>        Name of the CA to create (required)
+  --parent-ca <n>      Name of the parent CA to sign with (required)
+                          If same as --ca-name, creates a root CA
+  --pathlen <NUM>         Path length constraint (default: 2 for root, 1 for intermediate)
+  --validity <DAYS>       Validity period in days (default: 3650)
+  --ecc-curve <CURVE>     ECC curve to use (default: prime256v1)
+                          Options: prime256v1 (P-256), secp384r1 (P-384), secp521r1 (P-521)
+  --expired               Generate an expired CA certificate
+  --corrupted             Generate a corrupted CA certificate
+  --help                  Display this help message
+
+Examples:
+  # Create a root CA
+  $0 --ca-name "Root-CA" --parent-ca "Root-CA"
+
+  # Create an intermediate CA signed by Root-CA
+  $0 --ca-name "Intermediate-CA" --parent-ca "Root-CA"
+EOF
+}
+
+# Setup certificate directories
+setup_cert_dirs() {
+  # Determine the proper path for the CA directory
+  local ca_path="${CERT_DIR}/${CA_NAME}"
+
+  # If this is an intermediate CA, place it under its parent
+  if [ "${CA_NAME}" != "${PARENT_CA}" ]; then
+    ca_path="${CERT_DIR}/${PARENT_CA}/${CA_NAME}"
+    echo "Setting up intermediate CA directory for ${CA_NAME} under ${PARENT_CA}..."
+  else
+    echo "Setting up root CA directory for ${CA_NAME}..."
+  fi
+
+  # Create CA directories with their subdirectories
+  mkdir -p "${ca_path}/certs"
+  mkdir -p "${ca_path}/private"
+  mkdir -p "${ca_path}/csr"
+  mkdir -p "${ca_path}/crl"
+
+  # Create necessary database files for certificate management
+  touch "${ca_path}/index.txt"
+  echo "01" > "${ca_path}/serial"
+  echo "01" > "${ca_path}/crlnumber"
+
+  # Set proper permissions
+  chmod -R 700 "${ca_path}/private"
+}
+
+# Helper function to get the correct path for a CA
+get_ca_path() {
+  local name=$1
+  local parent=$2
+
+  if [ "${name}" = "${parent}" ]; then
+    # Root CA
+    echo "${CERT_DIR}/${name}"
+  else
+    # Intermediate CA
+    echo "${CERT_DIR}/${parent}/${name}"
+  fi
+}
+
+# Create certificate configuration file from template
+create_ca_config() {
+  local name=$1
+  local pathlen=$2
+  local ca_path=$(get_ca_path "${name}" "${PARENT_CA}")
+  local config_path="${ca_path}/${name}.cnf"
+
+  echo "Creating certificate configuration for ${name}..."
+
+  # Create a copy of the openssl.cnf with specific common name and pathlen
+  cat "${CERT_DIR}/openssl.cnf" | sed "s/@COMMON_NAME@/${name}/g" | sed "s/@PATHLEN@/${pathlen}/g" > "${config_path}"
+
+  return 0
+}
+
+# Main function to generate CA certificate
+generate_ca_cert() {
+  # Determine if this is a root or intermediate CA
+  local is_root=false
+  local ca_extensions="v3_intermediate_ca"
+
+  if [ "${CA_NAME}" = "${PARENT_CA}" ]; then
+    is_root=true
+    ca_extensions="v3_ca"
+
+    # Set default pathlen for root CA if not specified
+    if [ -z "${PATHLEN}" ]; then
+      PATHLEN=2
+    fi
+  else
+    # Set default pathlen for intermediate CA if not specified
+    if [ -z "${PATHLEN}" ]; then
+      PATHLEN=1
+    fi
+  fi
+
+  # Create OpenSSL config file if it doesn't exist
+  create_openssl_config
+
+  # Create CA directory structure
+  setup_cert_dirs
+
+  # Create CA specific config with the appropriate pathlen
+  create_ca_config "${CA_NAME}" "${PATHLEN}"
+
+  # Get the proper path for this CA
+  local ca_path=$(get_ca_path "${CA_NAME}" "${PARENT_CA}")
+
+  # Generate CA key
+  generate_private_key "${CA_NAME}" "${ca_path}/private" "${ECC_CURVE}"
+
+  # Check if key generation was successful
+  if [ ! -f "${ca_path}/private/${CA_NAME}.key" ]; then
+    echo "Error: Failed to generate private key for ${CA_NAME}."
+    echo "Please check filesystem permissions and try again."
+    exit 1
+  fi
+
+  if [ "${is_root}" = "true" ]; then
+    # Root CA: Generate self-signed certificate
+    create_self_signed_cert "${CA_NAME}" \
+      "${CERT_DIR}/openssl.cnf" \
+      "${ca_path}/private/${CA_NAME}.key" \
+      "${ca_path}/certs/${CA_NAME}.pem" \
+      "${VALIDITY}" \
+      "${CA_NAME}"
+
+    # Check if certificate creation was successful
+    if [ ! -f "${ca_path}/certs/${CA_NAME}.pem" ]; then
+      echo "Error: Failed to create self-signed certificate for ${CA_NAME}."
+      exit 1
+    fi
+
+    echo "Root CA certificate created at ${ca_path}/certs/${CA_NAME}.pem"
+
+    # Create a symbolic link to the certificate as chain.pem for consistency
+    ln -sf "${ca_path}/certs/${CA_NAME}.pem" "${ca_path}/${CA_NAME}_chain.pem"
+    echo "Created chain link at ${ca_path}/${CA_NAME}_chain.pem"
+  else
+    # Intermediate CA: Generate CSR and get it signed by parent CA
+    local parent_path=$(get_ca_path "${PARENT_CA}" "${PARENT_CA}")  # Parent CA path
+
+    # Create CSR
+    create_csr "${CA_NAME}" \
+      "${CERT_DIR}/openssl.cnf" \
+      "${ca_path}/private/${CA_NAME}.key" \
+      "${ca_path}/csr/${CA_NAME}.csr" \
+      "${CA_NAME}"
+
+    # Sign the CSR with the parent CA
+    sign_certificate "ca" \
+      "${ca_path}/csr/${CA_NAME}.csr" \
+      "${parent_path}/certs/${PARENT_CA}.pem" \
+      "${parent_path}/private/${PARENT_CA}.key" \
+      "${CERT_DIR}/openssl.cnf" \
+      "${ca_path}/certs/${CA_NAME}.pem" \
+      "${VALIDITY}" \
+      "${ca_extensions}"
+
+    # Check if signing was successful
+    if [ ! -f "${ca_path}/certs/${CA_NAME}.pem" ]; then
+      echo "Error: Failed to sign certificate for ${CA_NAME} with ${PARENT_CA}."
+      echo "Please check that the parent CA certificate and private key exist and are valid."
+      exit 1
+    fi
+
+    # Create certificate chain (intermediate + parent)
+    create_cert_chain \
+      "${ca_path}/certs/${CA_NAME}.pem" \
+      "${parent_path}/${PARENT_CA}_chain.pem" \
+      "${ca_path}/${CA_NAME}_chain.pem"
+
+    echo "Intermediate CA certificate created at ${ca_path}/certs/${CA_NAME}.pem"
+    echo "Certificate chain created at ${ca_path}/${CA_NAME}_chain.pem"
+  fi
+
+  # Handle failure modes if specified
+  if [ "${FAILURE_MODE}" = "corrupted" ]; then
+    corrupt_certificate "${ca_path}/certs/${CA_NAME}.pem"
+  fi
+
+  # Create a README for the CA
+  create_ca_readme
+}
+
+# Create a README file for the CA
+create_ca_readme() {
+  local ca_path=$(get_ca_path "${CA_NAME}" "${PARENT_CA}")
+  local ca_type="Intermediate"
+  local parent_info="Signed by: ${PARENT_CA}"
+
+  if [ "${CA_NAME}" = "${PARENT_CA}" ]; then
+    ca_type="Root"
+    parent_info="Self-signed"
+  fi
+
+  # Create README file
+  cat > "${ca_path}/README.txt" << EOF
+${CA_NAME} - ${ca_type} Certificate Authority
+=======================================
+
+Certificate type: ${ca_type} CA
+${parent_info}
+Key type: ECC (${ECC_CURVE})
+Validity: ${VALIDITY} days
+Path length constraint: ${PATHLEN}
+
+Directory Structure:
+------------------
+- certs/: Contains the CA certificate and chain
+- private/: Contains the private key (sensitive!)
+- csr/: Contains the Certificate Signing Request (if applicable)
+
+Certificate Path:
+---------------
+${ca_path}/certs/${CA_NAME}.pem
+
+Private Key Path:
+--------------
+${ca_path}/private/${CA_NAME}.key
+EOF
+
+  if [ "${CA_NAME}" != "${PARENT_CA}" ]; then
+    cat >> "${ca_path}/README.txt" << EOF
+
+Certificate Chain Path:
+-------------------
+${ca_path}/${CA_NAME}_chain.pem
+EOF
+  fi
+
+  if [ ! -z "${FAILURE_MODE}" ]; then
+    cat >> "${ca_path}/README.txt" << EOF
+
+ATTENTION: This CA has been deliberately ${FAILURE_MODE} for testing purposes.
+EOF
+  fi
+}
+
+# Main function
+main() {
+  # Parse arguments
+  parse_args "$@"
+
+  # Generate CA certificate
+  generate_ca_cert
+
+  local ca_path=$(get_ca_path "${CA_NAME}" "${PARENT_CA}")
+  echo "CA certificate generation complete."
+
+  # Display certificate details if OpenSSL is available
+  if command -v openssl &>/dev/null; then
+    echo "------------------------------"
+    echo "Certificate details:"
+    echo "------------------------------"
+    openssl x509 -in "${ca_path}/certs/${CA_NAME}.pem" -text -noout | grep -E "Subject:|Issuer:|Validity|Basic Constraints|Key Usage"
+    echo "------------------------------"
+  fi
+
+  echo "Certificate available at ${ca_path}/certs/${CA_NAME}.pem"
+}
+
+# Run the script
+main "$@"
