@@ -15,20 +15,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+if CSPC_L2_TEST
 SUBDIRS = l2-sampleapp
+endif
 
-# Install certificate generation scripts
-certscriptsdir = $(datadir)/cert-scripts
-certscripts_SCRIPTS = \
-    cert-scripts/cert_utils.sh \
-    cert-scripts/create_ca.sh \
-    cert-scripts/create_leaf_cert.sh \
-    cert-scripts/generate_test_rdk_certs.sh \
-    cert-scripts/install.sh
-
-# Run install script during installation
-install-exec-hook:
-	$(MKDIR_P) $(DESTDIR)$(datadir)/cert-scripts
-	chmod +x $(DESTDIR)$(datadir)/cert-scripts/*.sh
-	$(MKDIR_P) $(DESTDIR)/etc/pki
-	cd $(DESTDIR) && ln -sf $(datadir)/cert-scripts /etc/pki/scripts
+if TEST_RDK_CERTs
+SUBDIRS = cert-scripts
+endif

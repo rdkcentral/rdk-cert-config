@@ -125,9 +125,9 @@ parse_args() {
         shift 2
         ;;
       --expired)
-        VALIDITY="-365"
+        VALIDITY="-1"  # -1 is the minimum value OpenSSL accepts
         FAILURE_MODE="expired"
-        echo "Setting certificate to be expired..."
+        echo "Setting certificate to be expired (backdated by 1 day)..."
         shift
         ;;
       --corrupted)
@@ -346,7 +346,7 @@ generate_leaf_cert() {
   fi
 
   # Create a README for the certificate
-  create_leaf_readme "${ca_path}"
+  #create_leaf_readme "${ca_path}"
 }
 
 # Create a README file for the certificate
@@ -354,49 +354,21 @@ create_leaf_readme() {
   local ca_path=$1
 
   # Create README file
-  cat > "${ca_path}/certs/README_${CERT_NAME}.txt" << EOF
-${CERT_NAME} - ${CERT_TYPE} Certificate
-===============================
-
-Certificate type: ${CERT_TYPE}
-Signed by: ${CA_NAME}
-Key type: ECC (${ECC_CURVE})
-Validity: ${VALIDITY} days
-
-Files:
------
-- certs/${CERT_NAME}.pem: The certificate
-- private/${CERT_NAME}.key: The private key (sensitive!)
-- csr/${CERT_NAME}.csr: The Certificate Signing Request
-- certs/${CERT_NAME}.p12: PKCS#12 file containing certificate and private key with CA chain
-
-Certificate Path:
----------------
-${ca_path}/certs/${CERT_NAME}.pem
-
-Private Key Path:
---------------
-${ca_path}/private/${CERT_NAME}.key
-
-PKCS#12 File:
------------
-${ca_path}/certs/${CERT_NAME}.p12
+  # Print certificate information
+  echo "${CERT_NAME} - ${CERT_TYPE} Certificate created"
+  echo "Certificate path: ${ca_path}/certs/${CERT_NAME}.pem"
+  echo "Private key path: ${ca_path}/private/${CERT_NAME}.key"
+  echo "PKCS#12 file: ${ca_path}/certs/${CERT_NAME}.p12"
 EOF
 
   if [ ! -z "${FAILURE_MODE}" ]; then
-    cat >> "${ca_path}/certs/README_${CERT_NAME}.txt" << EOF
-
-ATTENTION: This certificate has been deliberately ${FAILURE_MODE} for testing purposes.
-EOF
+    echo "ATTENTION: This certificate has been deliberately ${FAILURE_MODE} for testing purposes."
   fi
 
   if [ ! -z "${CERT_PASSWORD}" ]; then
-    cat >> "${ca_path}/certs/README_${CERT_NAME}.txt" << EOF
-
-PKCS#12 Password: ${CERT_PASSWORD}
-EOF
+    echo "PKCS#12 Password: ${CERT_PASSWORD}"
   else
-    cat >> "${ca_path}/certs/README_${CERT_NAME}.txt" << EOF
+    # No password case
 
 PKCS#12 Password: [Empty password]
 EOF

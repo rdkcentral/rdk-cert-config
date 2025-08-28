@@ -104,6 +104,21 @@ AC_ARG_ENABLE([l2testing],
              ],
              [echo "l2 is disabled"])
 AM_CONDITIONAL([CSPC_L2_TEST], [test x$CSPC_L2_TEST = xtrue])
+
+#set condition for test RDK CERTS
+AC_ARG_ENABLE([testrdkcerts],
+             AS_HELP_STRING([--enable-testrdkcerts],[enable Test RDK cert generation (default is no)]),
+             [
+               case "${enableval}" in
+                yes) TEST_RDK_CERTS=true;;
+                no)  TEST_RDK_CERTS=false AC_MSG_ERROR([Test RDK cert generation is disabled]);;
+                 *) AC_MSG_ERROR([bad value ${enableval} for --enable-testrdkcerts ]);;
+               esac
+             ],
+             [echo "Test RDK cert generation is  disabled"])
+
+AM_CONDITIONAL([TEST_RDK_CERTS], [test x$TEST_RDK_CERTS = xtrue])
+
 # Check for necessary programs
 AC_PROG_CXX
 
@@ -133,11 +148,13 @@ AC_CONFIG_FILES([
      Makefile
      CertSelector/Makefile
      CertSelector/src/Makefile
+     test/Makefile
      ])
 AM_COND_IF([CSPC_RDKCONFIG_SUPPORT_ENABLED],[],[AC_CONFIG_FILES([RdkConfigApi/Makefile RdkConfigApi/src/Makefile])])
 fi
 
-AM_COND_IF([CSPC_L2_TEST],[AC_CONFIG_FILES([test/Makefile test/l2-sampleapp/Makefile])],[])
+AM_COND_IF([CSPC_L2_TEST],[AC_CONFIG_FILES([test/l2-sampleapp/Makefile])],[])
+AM_COND_IF([TEST_RDK_CERTS],[AC_CONFIG_FILES([test/cert-scripts/Makefile])],[])
 
 if test x$GTEST_SUPPORT_ENABLED == xtrue; then
 # Checks for library functions.

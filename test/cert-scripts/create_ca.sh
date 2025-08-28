@@ -2,7 +2,7 @@
 # CA Certificate creation script for PKI infrastructure
 # Usage: create_ca.sh --ca-name <CA_NAME> [--parent-ca <PARENT_CA>] [OPTIONS]
 #
-# This script creates a Certificate Authority (CA) certificate.
+# This script creates a Certificate Authority certificate.
 # If --ca-name and --parent-ca are the same, it creates a root CA (self-signed)
 # If different, it creates an intermediate CA signed by the parent CA
 #
@@ -10,12 +10,13 @@
 #   --ca-name <n>        Name of the CA to create (required)
 #   --parent-ca <n>      Name of the parent CA to sign with (required)
 #                           If same as --ca-name, creates a root CA
-#   --pathlen <NUM>         Path length constraint (default: 2 for root, 1 for intermediate)
+#   --pathlen <NUM>         Path length constraint (default: 5 for root, auto-calculated for intermediate)
 #   --validity <DAYS>       Validity period in days (default: 3650)
 #   --ecc-curve <CURVE>     ECC curve to use (default: prime256v1)
 #                           Options: prime256v1 (P-256), secp384r1 (P-384), secp521r1 (P-521)
 #   --expired               Generate an expired CA certificate
 #   --corrupted             Generate a corrupted CA certificate
+#   --revoked               Generate a revoked CA certificate
 #   --help                  Display this help message
 
 # Import utility functions
@@ -76,14 +77,19 @@ parse_args() {
         shift 2
         ;;
       --expired)
-        VALIDITY="-365"
-        echo "Setting CA to be expired..."
+        VALIDITY="-1"  # -1 is the minimum value OpenSSL accepts
+        echo "Setting CA to be expired (backdated by 1 day)..."
         FAILURE_MODE="expired"
         shift
         ;;
       --corrupted)
         FAILURE_MODE="corrupted"
         echo "Certificate will be corrupted after creation..."
+        shift
+        ;;
+      --revoked)
+        FAILURE_MODE="revoked"
+        echo "Certificate will be revoked after creation..."
         shift
         ;;
       --help)
@@ -122,12 +128,13 @@ Options:
   --ca-name <n>        Name of the CA to create (required)
   --parent-ca <n>      Name of the parent CA to sign with (required)
                           If same as --ca-name, creates a root CA
-  --pathlen <NUM>         Path length constraint (default: 2 for root, 1 for intermediate)
+  --pathlen <NUM>         Path length constraint (default: 5 for root, auto-calculated for intermediate)
   --validity <DAYS>       Validity period in days (default: 3650)
   --ecc-curve <CURVE>     ECC curve to use (default: prime256v1)
                           Options: prime256v1 (P-256), secp384r1 (P-384), secp521r1 (P-521)
   --expired               Generate an expired CA certificate
   --corrupted             Generate a corrupted CA certificate
+  --revoked               Generate a revoked CA certificate
   --help                  Display this help message
 
 Examples:
@@ -181,20 +188,7 @@ get_ca_path() {
   fi
 }
 
-# Create certificate configuration file from template
-create_ca_config() {
-  local name=$1
-  local pathlen=$2
-  local ca_path=$(get_ca_path "${name}" "${PARENT_CA}")
-  local config_path="${ca_path}/${name}.cnf"
-
-  echo "Creating certificate configuration for ${name}..."
-
-  # Create a copy of the openssl.cnf with specific common name and pathlen
-  cat "${CERT_DIR}/openssl.cnf" | sed "s/@COMMON_NAME@/${name}/g" | sed "s/@PATHLEN@/${pathlen}/g" > "${config_path}"
-
-  return 0
-}
+# Note: We no longer need CA-specific config files as we use the common openssl.cnf file
 
 # Main function to generate CA certificate
 generate_ca_cert() {
@@ -208,12 +202,34 @@ generate_ca_cert() {
 
     # Set default pathlen for root CA if not specified
     if [ -z "${PATHLEN}" ]; then
-      PATHLEN=2
+      PATHLEN=5
     fi
   else
     # Set default pathlen for intermediate CA if not specified
     if [ -z "${PATHLEN}" ]; then
-      PATHLEN=1
+      # For intermediate CAs, default pathlen is one less than parent's pathlen
+      # Get parent CA's pathlen by inspecting its certificate
+      local parent_path=$(get_ca_path "${PARENT_CA}" "${PARENT_CA}")
+      local parent_cert="${parent_path}/certs/${PARENT_CA}.pem"
+
+      if [ -f "${parent_cert}" ]; then
+        # Extract pathlen from parent certificate
+        local parent_pathlen=$(openssl x509 -in "${parent_cert}" -text -noout | grep "CA:TRUE" | grep -o "pathlen:[0-9]*" | cut -d: -f2)
+
+        if [ ! -z "${parent_pathlen}" ] && [ "${parent_pathlen}" -gt 0 ]; then
+          # Set pathlen to one less than parent's
+          PATHLEN=$((parent_pathlen - 1))
+          echo "Using pathlen ${PATHLEN} based on parent CA's constraint"
+        else
+          # Default if we couldn't determine parent's pathlen
+          PATHLEN=1
+          echo "Using default pathlen ${PATHLEN} for intermediate CA"
+        fi
+      else
+        # Default if parent certificate doesn't exist
+        PATHLEN=1
+        echo "Using default pathlen ${PATHLEN} (parent certificate not found)"
+      fi
     fi
   fi
 
@@ -222,9 +238,6 @@ generate_ca_cert() {
 
   # Create CA directory structure
   setup_cert_dirs
-
-  # Create CA specific config with the appropriate pathlen
-  create_ca_config "${CA_NAME}" "${PATHLEN}"
 
   # Get the proper path for this CA
   local ca_path=$(get_ca_path "${CA_NAME}" "${PARENT_CA}")
@@ -278,7 +291,8 @@ generate_ca_cert() {
       "${CERT_DIR}/openssl.cnf" \
       "${ca_path}/certs/${CA_NAME}.pem" \
       "${VALIDITY}" \
-      "${ca_extensions}"
+      "${ca_extensions}" \
+      "${PATHLEN}"
 
     # Check if signing was successful
     if [ ! -f "${ca_path}/certs/${CA_NAME}.pem" ]; then
@@ -300,10 +314,35 @@ generate_ca_cert() {
   # Handle failure modes if specified
   if [ "${FAILURE_MODE}" = "corrupted" ]; then
     corrupt_certificate "${ca_path}/certs/${CA_NAME}.pem"
+  elif [ "${FAILURE_MODE}" = "revoked" ]; then
+    # We only revoke intermediate CAs, not root CAs
+    if [ "${CA_NAME}" != "${PARENT_CA}" ]; then
+      # This is an intermediate CA, revoke it using its parent
+      local parent_path=$(get_ca_path "${PARENT_CA}" "${PARENT_CA}")
+
+      # Make sure the CRL directory exists
+      if [ ! -d "${parent_path}/crl" ]; then
+        echo "Creating CRL directory at ${parent_path}/crl"
+        mkdir -p "${parent_path}/crl"
+      fi
+
+      # Revoke the intermediate CA using its parent
+      revoke_certificate \
+        "${ca_path}/certs/${CA_NAME}.pem" \
+        "${parent_path}/certs/${PARENT_CA}.pem" \
+        "${parent_path}/private/${PARENT_CA}.key" \
+        "${CERT_DIR}/openssl.cnf" \
+        "${parent_path}/crl/${CA_NAME}.crl"
+
+      echo "Intermediate CA revoked by parent CA. CRL available at: ${parent_path}/crl/${CA_NAME}.crl"
+    else
+      echo "Note: Root CA revocation is not implemented as it requires removing from trust stores."
+      echo "The --revoked option is only effective for intermediate CAs."
+    fi
   fi
 
   # Create a README for the CA
-  create_ca_readme
+  #create_ca_readme
 }
 
 # Create a README file for the CA
@@ -317,46 +356,17 @@ create_ca_readme() {
     parent_info="Self-signed"
   fi
 
-  # Create README file
-  cat > "${ca_path}/README.txt" << EOF
-${CA_NAME} - ${ca_type} Certificate Authority
-=======================================
-
-Certificate type: ${ca_type} CA
-${parent_info}
-Key type: ECC (${ECC_CURVE})
-Validity: ${VALIDITY} days
-Path length constraint: ${PATHLEN}
-
-Directory Structure:
-------------------
-- certs/: Contains the CA certificate and chain
-- private/: Contains the private key (sensitive!)
-- csr/: Contains the Certificate Signing Request (if applicable)
-
-Certificate Path:
----------------
-${ca_path}/certs/${CA_NAME}.pem
-
-Private Key Path:
---------------
-${ca_path}/private/${CA_NAME}.key
-EOF
+  # Print certificate information
+  echo "${CA_NAME} - ${ca_type} Certificate Authority created"
+  echo "Certificate path: ${ca_path}/certs/${CA_NAME}.pem"
+  echo "Private key path: ${ca_path}/private/${CA_NAME}.key"
 
   if [ "${CA_NAME}" != "${PARENT_CA}" ]; then
-    cat >> "${ca_path}/README.txt" << EOF
-
-Certificate Chain Path:
--------------------
-${ca_path}/${CA_NAME}_chain.pem
-EOF
+    echo "Chain file: ${ca_path}/${CA_NAME}_chain.pem"
   fi
 
   if [ ! -z "${FAILURE_MODE}" ]; then
-    cat >> "${ca_path}/README.txt" << EOF
-
-ATTENTION: This CA has been deliberately ${FAILURE_MODE} for testing purposes.
-EOF
+    echo "ATTENTION: This CA has been deliberately ${FAILURE_MODE} for testing purposes."
   fi
 }
 
