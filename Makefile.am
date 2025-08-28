@@ -20,6 +20,4 @@ SUBDIRS = CertSelector
 else
 SUBDIRS = RdkConfigApi CertSelector
 endif
-if CSPC_L2_TEST
 SUBDIRS += test
-endif

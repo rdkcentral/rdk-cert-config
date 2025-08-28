@@ -57,6 +57,7 @@ sign_certificate() {
   local output_cert=$6   # Where to write the certificate
   local validity=$7      # Validity period in days
   local extensions=$8    # Extensions section name in config
+  local pathlen=$9       # Optional pathlen constraint for intermediate CAs
 
   echo "Signing certificate using ${cert_type} extensions..."
 
@@ -69,6 +70,14 @@ sign_certificate() {
   local temp_config="${ca_config}.tmp"
   cp "${ca_config}" "${temp_config}"
 
+  # Apply pathlen constraint if specified and using intermediate CA extensions
+  if [ "${extensions}" = "v3_intermediate_ca" ] && [ ! -z "${pathlen}" ]; then
+    sed -i "s/@PATHLEN@/${pathlen}/g" "${temp_config}"
+  else
+    # Default pathlen for intermediate CAs
+    sed -i "s/@PATHLEN@/1/g" "${temp_config}"
+  fi
+
   # Sign the certificate
   openssl x509 -req -in "${csr_path}" \
     -CA "${ca_cert}" \
@@ -76,7 +85,7 @@ sign_certificate() {
     -CAcreateserial \
     -out "${output_cert}" \
     -days "${validity}" \
-    -extfile "${ca_config}" \
+    -extfile "${temp_config}" \
     -extensions "${extensions}"
 
   # Remove the temporary config
@@ -305,7 +314,7 @@ nsCertType = sslCA
 [ v3_intermediate_ca ]
 subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid:always,issuer
-basicConstraints = critical, CA:true, pathlen:1
+basicConstraints = critical, CA:true, pathlen:@PATHLEN@
 keyUsage = critical, digitalSignature, cRLSign, keyCertSign
 nsCertType = sslCA
 

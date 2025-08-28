@@ -1,29 +1,15 @@
-# RDK Certificate Generation Scripts
+# RDK Certificate Test Scripts
 
-This directory contains modularized scripts for generating and managing RDK test certificates.
-The scripts provide a complete PKI infrastructure for testing various certificate-related scenarios.
+This directory contains scripts for generating test certificates for various PKI testing scenarios. These scripts are designed to help test certificate validation logic by generating both valid certificates and certificates with specific issues.
 
-## Script Overview
+## Scripts Overview
 
-### 1. generate_test_rdk_certs.sh
-- Main wrapper script that orchestrates the complete certificate generation process
-- Handles various failure scenarios (expired, corrupted, revoked certificates)
-- Creates a full certificate chain: Root CA → Intermediate CAs → Leaf Certificates
+### Main Scripts:
 
-### 2. create_ca.sh
-- Creates CA certificates (both root and intermediate)
-- Handles CA-specific configurations and key management
-- Can create various failure scenarios for CA certificates
-
-### 3. create_leaf_cert.sh
-- Creates leaf certificates (server and client) signed by a CA
-- Manages certificate signing requests (CSRs)
-- Can create various test scenarios with invalid certificates
-
-### 4. cert_utils.sh
-- Contains common utility functions used by all scripts
-- Centralizes certificate operations like key generation, certificate signing, etc.
-- Provides consistent implementation across all certificate types
+- **generate_test_rdk_certs.sh**: Main entry point for generating test certificates
+- **create_ca.sh**: Creates Certificate Authority certificates (Root or Intermediate)
+- **create_leaf_cert.sh**: Creates leaf certificates signed by a CA
+- **cert_utils.sh**: Shared utility functions for certificate operations
 
 ## Installation
 
@@ -31,13 +17,92 @@ The scripts are installed in Docker images in `/usr/local/share/cert-scripts/` a
 
 1. Directly from the installation directory:
    ```bash
-   /usr/local/share/cert-scripts/generate_test_rdk_certs.sh [OPTIONS]
+   /usr/local/share/cert-scripts/generate_test_rdk_certs.sh --type <TYPE> [OPTIONS]
    ```
 
 2. Using the symlink at `/etc/pki/scripts/`:
    ```bash
-   /etc/pki/scripts/generate_test_rdk_certs.sh [OPTIONS]
+   /etc/pki/scripts/generate_test_rdk_certs.sh --type <TYPE> [OPTIONS]
    ```
+
+## Usage
+
+### Basic Usage
+
+```bash
+./generate_test_rdk_certs.sh --type <TYPE> [OPTIONS]
+```
+
+### Required Parameters
+
+- `--type <TYPE>`: Certificate type (must be "server" or "client")
+
+### Optional Parameters
+
+#### Certificate Curve Options
+- `--ecc-p384`: Use ECC curve P-384 (default is P-256)
+- `--ecc-p521`: Use ECC curve P-521 (default is P-256)
+
+#### Failure Mode Options
+- `--expired-cert`: Generate a leaf certificate that is already expired
+- `--expired-intermediate`: Generate an expired intermediate CA
+- `--expired-root`: Generate an expired root CA
+- `--corrupted-cert`: Generate a corrupted leaf certificate
+- `--corrupted-intermediate`: Generate a corrupted intermediate CA
+- `--corrupted-root`: Generate a corrupted root CA
+- `--revoked-cert`: Generate a revoked leaf certificate
+- `--revoked-intermediate`: Generate a revoked intermediate CA
+- `--revoked-root`: Generate a revoked root CA
+- `--untrusted-root`: Generate a root CA that won't be in the trust store
+- `--missing-cert`: Simulate a missing certificate file
+- `--cert-key-mismatch`: Generate a certificate with mismatched private key
+- `--missing-passcode`: Generate a P12 file with no password
+- `--wrong-passcode`: Generate a P12 file with a different password than expected
+
+### Examples
+
+#### Generate standard client certificates
+```bash
+./generate_test_rdk_certs.sh --type client
+```
+
+#### Generate server certificates with P-384 curve
+```bash
+./generate_test_rdk_certs.sh --type server --ecc-p384
+```
+
+#### Generate expired client certificate
+```bash
+./generate_test_rdk_certs.sh --type client --expired-cert
+```
+
+## Certificate Directory Structure
+
+The certificates are organized in a hierarchical directory structure:
+
+```
+<output-dir>/
+├── Test-RDK-root/                  # Root CA directory
+│   ├── certs/                      # Root CA certificates
+│   │   └── Test-RDK-root.pem       # Root CA certificate
+│   └── private/                    # Root CA private keys
+│       └── Test-RDK-root.key       # Root CA private key
+│
+├── Test-RDK-<type>-ICA/            # Intermediate CA directory (type = client or server)
+│   ├── certs/                      # Intermediate CA certificates
+│   │   ├── Test-RDK-<type>-ICA.pem # Intermediate CA certificate
+│   │   └── test-rdk-<type>-cert/   # Leaf certificates issued by this CA
+│   │       ├── test-rdk-<type>-cert.pem  # Leaf certificate
+│   │       └── test-rdk-<type>-cert.p12  # PKCS#12 file with cert and key
+│   └── private/                    # Intermediate CA private keys
+│       ├── Test-RDK-<type>-ICA.key # Intermediate CA private key
+│       └── test-rdk-<type>-cert.key # Leaf certificate private key
+│
+└── certs/                          # Consolidated certificates directory
+    └── test-scenarios/             # Test scenario certificates
+        └── <failure-mode>/         # Subdirectory for each failure mode
+            └── ...                 # Relevant certificates for this failure mode
+```
 
 ## Certificate Hierarchy
 
@@ -51,21 +116,30 @@ Root CA (Test-RDK-root)
     └── Client Certificate (test-rdk-client-cert)
 ```
 
-## Usage
+## ECC Curve Information
 
-### Basic Usage
-```bash
-/etc/pki/scripts/generate_test_rdk_certs.sh
-```
+- **P-256 (prime256v1)**: 256-bit elliptic curve (default)
+- **P-384 (secp384r1)**: 384-bit elliptic curve
+- **P-521 (secp521r1)**: 521-bit elliptic curve
 
-### Generate Specific Failure Scenarios
-```bash
-# Create expired leaf certificate
-/etc/pki/scripts/generate_test_rdk_certs.sh --expired-cert
+## Certificate Chain Files
 
-# Create corrupted intermediate CA
-/etc/pki/scripts/generate_test_rdk_certs.sh --corrupted-intermediate
+- **fullchain.pem**: Contains the leaf certificate followed by the CA chain
+- **chain.pem**: Contains the CA chain without the leaf certificate
 
-# Create certificates with different ECC curves
-/etc/pki/scripts/generate_test_rdk_certs.sh --ecc-p384
-```
+## Available Test Scenarios
+
+### Leaf Certificate Issues
+- **Expired Certificate**: A certificate with an expiry date in the past
+- **Corrupted Certificate**: A certificate with invalid format
+- **Revoked Certificate**: A certificate that has been revoked
+- **Missing Certificate**: Simulates a missing certificate file
+- **Key Mismatch**: A certificate with a mismatched private key
+- **No Password**: A P12 file without a password
+- **Wrong Password**: A P12 file with an unexpected password
+
+### CA Issues
+- **Expired CA**: A CA certificate with an expiry date in the past
+- **Corrupted CA**: A CA certificate with invalid format
+- **Untrusted Root**: A root CA that isn't in the trust store
+- **Revoked CA**: A CA certificate that has been revoked
