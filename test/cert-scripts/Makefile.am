@@ -17,10 +17,10 @@
 
 certscriptsdir = $(datadir)/cert-scripts
 certscripts_SCRIPTS = \
-    cert-scripts/cert_utils.sh \
-    cert-scripts/create_ca.sh \
-    cert-scripts/create_leaf_cert.sh \
-    cert-scripts/generate_test_rdk_certs.sh
+    cert_utils.sh \
+    create_ca.sh \
+    create_leaf_cert.sh \
+    generate_test_rdk_certs.sh
 
 # Run installation steps during installation
 install-data-hook:
