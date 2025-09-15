@@ -85,18 +85,17 @@ The certificates are organized in a hierarchical directory structure:
 ├── Test-RDK-root/                  # Root CA directory
 │   ├── certs/                      # Root CA certificates
 │   │   └── Test-RDK-root.pem       # Root CA certificate
-│   └── private/                    # Root CA private keys
-│       └── Test-RDK-root.key       # Root CA private key
-│
-├── Test-RDK-<type>-ICA/            # Intermediate CA directory (type = client or server)
-│   ├── certs/                      # Intermediate CA certificates
-│   │   ├── Test-RDK-<type>-ICA.pem # Intermediate CA certificate
-│   │   └── test-rdk-<type>-cert/   # Leaf certificates issued by this CA
-│   │       ├── test-rdk-<type>-cert.pem  # Leaf certificate
-│   │       └── test-rdk-<type>-cert.p12  # PKCS#12 file with cert and key
-│   └── private/                    # Intermediate CA private keys
-│       ├── Test-RDK-<type>-ICA.key # Intermediate CA private key
-│       └── test-rdk-<type>-cert.key # Leaf certificate private key
+│   ├── private/                    # Root CA private keys
+│   │   └── Test-RDK-root.key       # Root CA private key
+│   │
+│   ├── Test-RDK-<type>-ICA/        # Intermediate CA directory (type = client or server)
+│   │   ├── certs/                  # Intermediate CA certificates
+│   │   │   ├── Test-RDK-<type>-ICA.pem # Intermediate CA certificate
+│   │   │   └── test-rdk-<type>-cert.pem # Leaf certificate
+│   │   │   └── test-rdk-<type>-cert.p12 # PKCS#12 file with cert and key
+│   │   └── private/                # Intermediate CA and leaf certificate private keys
+│   │       ├── Test-RDK-<type>-ICA.key # Intermediate CA private key
+│   │       └── test-rdk-<type>-cert.key # Leaf certificate private key
 │
 └── certs/                          # Consolidated certificates directory
     └── test-scenarios/             # Test scenario certificates
@@ -110,10 +109,10 @@ The scripts generate a complete certificate hierarchy with the following structu
 
 ```
 Root CA (Test-RDK-root)
-├── Server Intermediate CA (Test-RDK-server-ICA)
-│   └── Server Certificate (test-rdk-server-cert)
-└── Client Intermediate CA (Test-RDK-client-ICA)
-    └── Client Certificate (test-rdk-client-cert)
+├── Server Intermediate CA (Test-RDK-root/Test-RDK-server-ICA)
+│   └── Server Certificate (Test-RDK-root/Test-RDK-server-ICA/test-rdk-server-cert)
+└── Client Intermediate CA (Test-RDK-root/Test-RDK-client-ICA)
+    └── Client Certificate (Test-RDK-root/Test-RDK-client-ICA/test-rdk-client-cert)
 ```
 
 ## ECC Curve Information
