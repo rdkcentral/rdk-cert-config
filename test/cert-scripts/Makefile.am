@@ -27,5 +27,7 @@ install-data-hook:
 	$(MKDIR_P) $(DESTDIR)$(datadir)/cert-scripts
 	chmod +x $(DESTDIR)$(datadir)/cert-scripts/*.sh
 	$(MKDIR_P) $(DESTDIR)/etc/pki
+	$(MKDIR_P) $(DESTDIR)/etc/ssl/certsel
 	cd $(DESTDIR) && ln -sf $(datadir)/cert-scripts /etc/pki/scripts
 	@echo "Certificate scripts installed successfully at $(DESTDIR)$(datadir)/cert-scripts"
+	@echo "Created CertSelector configuration directory at $(DESTDIR)/etc/ssl/certsel"
