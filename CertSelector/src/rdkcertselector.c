@@ -256,6 +256,7 @@ char *rdkcertselector_getEngine( rdkcertselector_h thiscertsel ) {
   } else {
     hroteng = NULL;
   }
+  ERROR_LOG( " %s: engine (%s)\n", __FUNCTION__, hroteng );
   return hroteng;
 
 } // rdkcertselector_getEngine( )
