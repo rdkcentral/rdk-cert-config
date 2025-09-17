@@ -341,7 +341,7 @@ main() {
   setup_test_scenarios
 
   # Print certificate information
-  print_certificate_info
+  #print_certificate_info
 
   # Set appropriate permissions
   chmod -R 644 ${CERT_DIR}/certs/*.pem ${CERT_DIR}/certs/*.p12 2>/dev/null || true
@@ -349,19 +349,19 @@ main() {
 
   # Print a summary
   echo ""
-  echo "Certificate generation complete."
-  echo "Root CA: ${CERT_DIR}/Test-RDK-root/certs/Test-RDK-root.pem"
-  echo "${CERT_TYPE^} Intermediate CA: ${CERT_DIR}/${ICA_NAME}/certs/${ICA_NAME}.pem"
-  echo "${CERT_TYPE^} Certificate: ${CERT_DIR}/${ICA_NAME}/certs/${CERT_NAME}.pem"
-  echo "${CERT_TYPE^} Key: ${CERT_DIR}/${ICA_NAME}/private/${CERT_NAME}.key"
+  echo_t "Certificate generation complete."
+  echo_t "Root CA: ${CERT_DIR}/Test-RDK-root/certs/Test-RDK-root.pem"
+  echo_t "${CERT_TYPE^} Intermediate CA: ${CERT_DIR}/${ICA_NAME}/certs/${ICA_NAME}.pem"
+  echo_t "${CERT_TYPE^} Certificate: ${CERT_DIR}/${ICA_NAME}/certs/${CERT_NAME}.pem"
+  echo_t "${CERT_TYPE^} Key: ${CERT_DIR}/${ICA_NAME}/private/${CERT_NAME}.key"
 
   if [ ! -z "$FAILURE_MODE" ]; then
-    echo ""
-    echo "Test scenario: ${FAILURE_MODE}"
-    echo "Test certificates copied to: ${CERT_DIR}/certs/test-scenarios/${FAILURE_MODE}"
+    echo_t ""
+    echo_t "Test scenario: ${FAILURE_MODE}"
+    echo_t "Test certificates copied to: ${CERT_DIR}/certs/test-scenarios/${FAILURE_MODE}"
   fi
 
-  echo "For more information, see the README.md file at: ${SCRIPT_DIR}/README.md"
+  echo_t "For more information, see the README.md file at: ${SCRIPT_DIR}/README.md"
 }
 
 # Run the script
