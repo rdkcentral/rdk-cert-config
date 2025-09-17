@@ -33,7 +33,7 @@ FAILURE_MODE=""
 # Parse command line arguments
 parse_args() {
   if [ $# -eq 0 ]; then
-    echo "Error: Missing required arguments"
+    echo_a "Error: Missing required arguments"
     show_help
     exit 1
   fi
@@ -69,8 +69,8 @@ parse_args() {
             ECC_CURVE="secp521r1"
             ;;
           *)
-            echo "Error: Invalid ECC curve specified"
-            echo "Valid options: prime256v1, secp384r1, secp521r1"
+            echo_a "Error: Invalid ECC curve specified"
+            echo_t "Valid options: prime256v1, secp384r1, secp521r1"
             exit 1
             ;;
         esac
@@ -78,18 +78,18 @@ parse_args() {
         ;;
       --expired)
         VALIDITY="-1"  # -1 is the minimum value OpenSSL accepts
-        echo "Setting CA to be expired (backdated by 1 day)..."
+        echo_t "Setting CA to be expired (backdated by 1 day)..."
         FAILURE_MODE="expired"
         shift
         ;;
       --corrupted)
         FAILURE_MODE="corrupted"
-        echo "Certificate will be corrupted after creation..."
+        echo_t "Certificate will be corrupted after creation..."
         shift
         ;;
       --revoked)
         FAILURE_MODE="revoked"
-        echo "Certificate will be revoked after creation..."
+        echo_t "Certificate will be revoked after creation..."
         shift
         ;;
       --help)
@@ -97,7 +97,7 @@ parse_args() {
         exit 0
         ;;
       *)
-        echo "Unknown option: $1"
+        echo_t "Unknown option: $1"
         show_help
         exit 1
         ;;
@@ -106,12 +106,12 @@ parse_args() {
 
   # Validate required parameters
   if [ -z "$CA_NAME" ]; then
-    echo "Error: CA name is required (--ca-name)"
+    echo_a "Error: CA name is required (--ca-name)"
     exit 1
   fi
 
   if [ -z "$PARENT_CA" ]; then
-    echo "Error: Parent CA name is required (--parent-ca)"
+    echo_a "Error: Parent CA name is required (--parent-ca)"
     exit 1
   fi
 }
@@ -154,9 +154,9 @@ setup_cert_dirs() {
   # If this is an intermediate CA, place it under its parent
   if [ "${CA_NAME}" != "${PARENT_CA}" ]; then
     ca_path="${CERT_DIR}/${PARENT_CA}/${CA_NAME}"
-    echo "Setting up intermediate CA directory for ${CA_NAME} under ${PARENT_CA}..."
+    echo_t "Setting up intermediate CA directory for ${CA_NAME} under ${PARENT_CA}..."
   else
-    echo "Setting up root CA directory for ${CA_NAME}..."
+    echo_t "Setting up root CA directory for ${CA_NAME}..."
   fi
 
   # Create CA directories with their subdirectories
@@ -181,10 +181,10 @@ get_ca_path() {
 
   if [ "${name}" = "${parent}" ]; then
     # Root CA
-    echo "${CERT_DIR}/${name}"
+    echo_t "${CERT_DIR}/${name}"
   else
     # Intermediate CA
-    echo "${CERT_DIR}/${parent}/${name}"
+    echo_t "${CERT_DIR}/${parent}/${name}"
   fi
 }
 
@@ -219,16 +219,16 @@ generate_ca_cert() {
         if [ ! -z "${parent_pathlen}" ] && [ "${parent_pathlen}" -gt 0 ]; then
           # Set pathlen to one less than parent's
           PATHLEN=$((parent_pathlen - 1))
-          echo "Using pathlen ${PATHLEN} based on parent CA's constraint"
+          echo_t "Using pathlen ${PATHLEN} based on parent CA's constraint"
         else
           # Default if we couldn't determine parent's pathlen
           PATHLEN=1
-          echo "Using default pathlen ${PATHLEN} for intermediate CA"
+          echo_t "Using default pathlen ${PATHLEN} for intermediate CA"
         fi
       else
         # Default if parent certificate doesn't exist
         PATHLEN=1
-        echo "Using default pathlen ${PATHLEN} (parent certificate not found)"
+        echo_t "Using default pathlen ${PATHLEN} (parent certificate not found)"
       fi
     fi
   fi
@@ -247,8 +247,8 @@ generate_ca_cert() {
 
   # Check if key generation was successful
   if [ ! -f "${ca_path}/private/${CA_NAME}.key" ]; then
-    echo "Error: Failed to generate private key for ${CA_NAME}."
-    echo "Please check filesystem permissions and try again."
+    echo_a "Error: Failed to generate private key for ${CA_NAME}."
+    echo_t "Please check filesystem permissions and try again."
     exit 1
   fi
 
@@ -263,15 +263,15 @@ generate_ca_cert() {
 
     # Check if certificate creation was successful
     if [ ! -f "${ca_path}/certs/${CA_NAME}.pem" ]; then
-      echo "Error: Failed to create self-signed certificate for ${CA_NAME}."
+      echo_a "Error: Failed to create self-signed certificate for ${CA_NAME}."
       exit 1
     fi
 
-    echo "Root CA certificate created at ${ca_path}/certs/${CA_NAME}.pem"
+    echo_t "Root CA certificate created at ${ca_path}/certs/${CA_NAME}.pem"
 
     # Create a symbolic link to the certificate as chain.pem for consistency
     ln -sf "${ca_path}/certs/${CA_NAME}.pem" "${ca_path}/${CA_NAME}_chain.pem"
-    echo "Created chain link at ${ca_path}/${CA_NAME}_chain.pem"
+    echo_t "Created chain link at ${ca_path}/${CA_NAME}_chain.pem"
   else
     # Intermediate CA: Generate CSR and get it signed by parent CA
     local parent_path=$(get_ca_path "${PARENT_CA}" "${PARENT_CA}")  # Parent CA path
@@ -296,8 +296,8 @@ generate_ca_cert() {
 
     # Check if signing was successful
     if [ ! -f "${ca_path}/certs/${CA_NAME}.pem" ]; then
-      echo "Error: Failed to sign certificate for ${CA_NAME} with ${PARENT_CA}."
-      echo "Please check that the parent CA certificate and private key exist and are valid."
+      echo_a "Error: Failed to sign certificate for ${CA_NAME} with ${PARENT_CA}."
+      echo_t "Please check that the parent CA certificate and private key exist and are valid."
       exit 1
     fi
 
@@ -307,8 +307,8 @@ generate_ca_cert() {
       "${parent_path}/${PARENT_CA}_chain.pem" \
       "${ca_path}/${CA_NAME}_chain.pem"
 
-    echo "Intermediate CA certificate created at ${ca_path}/certs/${CA_NAME}.pem"
-    echo "Certificate chain created at ${ca_path}/${CA_NAME}_chain.pem"
+    echo_t "Intermediate CA certificate created at ${ca_path}/certs/${CA_NAME}.pem"
+    echo_t "Certificate chain created at ${ca_path}/${CA_NAME}_chain.pem"
   fi
 
   # Handle failure modes if specified
@@ -322,7 +322,7 @@ generate_ca_cert() {
 
       # Make sure the CRL directory exists
       if [ ! -d "${parent_path}/crl" ]; then
-        echo "Creating CRL directory at ${parent_path}/crl"
+        echo_t "Creating CRL directory at ${parent_path}/crl"
         mkdir -p "${parent_path}/crl"
       fi
 
@@ -334,10 +334,10 @@ generate_ca_cert() {
         "${CERT_DIR}/openssl.cnf" \
         "${parent_path}/crl/${CA_NAME}.crl"
 
-      echo "Intermediate CA revoked by parent CA. CRL available at: ${parent_path}/crl/${CA_NAME}.crl"
+      echo_t "Intermediate CA revoked by parent CA. CRL available at: ${parent_path}/crl/${CA_NAME}.crl"
     else
-      echo "Note: Root CA revocation is not implemented as it requires removing from trust stores."
-      echo "The --revoked option is only effective for intermediate CAs."
+      echo_t "Note: Root CA revocation is not implemented as it requires removing from trust stores."
+      echo_t "The --revoked option is only effective for intermediate CAs."
     fi
   fi
 
@@ -357,16 +357,16 @@ create_ca_readme() {
   fi
 
   # Print certificate information
-  echo "${CA_NAME} - ${ca_type} Certificate Authority created"
-  echo "Certificate path: ${ca_path}/certs/${CA_NAME}.pem"
-  echo "Private key path: ${ca_path}/private/${CA_NAME}.key"
+  echo_t "${CA_NAME} - ${ca_type} Certificate Authority created"
+  echo_t "Certificate path: ${ca_path}/certs/${CA_NAME}.pem"
+  echo_t "Private key path: ${ca_path}/private/${CA_NAME}.key"
 
   if [ "${CA_NAME}" != "${PARENT_CA}" ]; then
-    echo "Chain file: ${ca_path}/${CA_NAME}_chain.pem"
+    echo_t "Chain file: ${ca_path}/${CA_NAME}_chain.pem"
   fi
 
   if [ ! -z "${FAILURE_MODE}" ]; then
-    echo "ATTENTION: This CA has been deliberately ${FAILURE_MODE} for testing purposes."
+    echo_t "ATTENTION: This CA has been deliberately ${FAILURE_MODE} for testing purposes."
   fi
 }
 
@@ -379,18 +379,18 @@ main() {
   generate_ca_cert
 
   local ca_path=$(get_ca_path "${CA_NAME}" "${PARENT_CA}")
-  echo "CA certificate generation complete."
+  echo_t "CA certificate generation complete."
 
   # Display certificate details if OpenSSL is available
   if command -v openssl &>/dev/null; then
-    echo "------------------------------"
-    echo "Certificate details:"
-    echo "------------------------------"
+    echo_t "------------------------------"
+    echo_t "Certificate details:"
+    echo_t "------------------------------"
     openssl x509 -in "${ca_path}/certs/${CA_NAME}.pem" -text -noout | grep -E "Subject:|Issuer:|Validity|Basic Constraints|Key Usage"
-    echo "------------------------------"
+    echo_t "------------------------------"
   fi
 
-  echo "Certificate available at ${ca_path}/certs/${CA_NAME}.pem"
+  echo_t "Certificate available at ${ca_path}/certs/${CA_NAME}.pem"
 }
 
 # Run the script
