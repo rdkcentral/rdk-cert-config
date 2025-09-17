@@ -181,10 +181,10 @@ get_ca_path() {
 
   if [ "${name}" = "${parent}" ]; then
     # Root CA
-    echo_t "${CERT_DIR}/${name}"
+    echo "${CERT_DIR}/${name}"
   else
     # Intermediate CA
-    echo_t "${CERT_DIR}/${parent}/${name}"
+    echo "${CERT_DIR}/${parent}/${name}"
   fi
 }
 
