@@ -87,32 +87,17 @@ The certificates are organized in a hierarchical directory structure:
 │   │   └── Test-RDK-root.pem       # Root CA certificate
 │   ├── private/                    # Root CA private keys
 │   │   └── Test-RDK-root.key       # Root CA private key
+│   ├── Test-RDK-root_chain.pem     # Root CA chain file (same as root cert for root CAs)
 │   │
 │   ├── Test-RDK-<type>-ICA/        # Intermediate CA directory (type = client or server)
-│   │   ├── certs/                  # Intermediate CA certificates
-│   │   │   ├── Test-RDK-<type>-ICA.pem # Intermediate CA certificate
-│   │   │   └── test-rdk-<type>-cert.pem # Leaf certificate
-│   │   │   └── test-rdk-<type>-cert.p12 # PKCS#12 file with cert and key
-│   │   └── private/                # Intermediate CA and leaf certificate private keys
-│   │       ├── Test-RDK-<type>-ICA.key # Intermediate CA private key
-│   │       └── test-rdk-<type>-cert.key # Leaf certificate private key
-│
-└── certs/                          # Consolidated certificates directory
-    └── test-scenarios/             # Test scenario certificates
-        └── <failure-mode>/         # Subdirectory for each failure mode
-            └── ...                 # Relevant certificates for this failure mode
-```
-
-## Certificate Hierarchy
-
-The scripts generate a complete certificate hierarchy with the following structure:
-
-```
-Root CA (Test-RDK-root)
-├── Server Intermediate CA (Test-RDK-root/Test-RDK-server-ICA)
-│   └── Server Certificate (Test-RDK-root/Test-RDK-server-ICA/test-rdk-server-cert)
-└── Client Intermediate CA (Test-RDK-root/Test-RDK-client-ICA)
-    └── Client Certificate (Test-RDK-root/Test-RDK-client-ICA/test-rdk-client-cert)
+│       ├── certs/                  # Intermediate CA certificates
+│       │   ├── Test-RDK-<type>-ICA.pem # Intermediate CA certificate
+│       │   ├── test-rdk-<type>-cert.pem # Leaf certificate
+│       │   └── test-rdk-<type>-cert.p12 # PKCS#12 file with cert and key
+│       ├── private/                # Intermediate CA and leaf certificate private keys
+│       │   ├── Test-RDK-<type>-ICA.key # Intermediate CA private key
+│       │   └── test-rdk-<type>-cert.key # Leaf certificate private key
+│       └── Test-RDK-<type>-ICA_chain.pem # Intermediate CA chain file
 ```
 
 ## ECC Curve Information
@@ -123,22 +108,8 @@ Root CA (Test-RDK-root)
 
 ## Certificate Chain Files
 
-- **fullchain.pem**: Contains the leaf certificate followed by the CA chain
+- **fullchain.pem**: Contains the leaf certificate followed by the CA chain (when created)
 - **chain.pem**: Contains the CA chain without the leaf certificate
-
-## Available Test Scenarios
-
-### Leaf Certificate Issues
-- **Expired Certificate**: A certificate with an expiry date in the past
-- **Corrupted Certificate**: A certificate with invalid format
-- **Revoked Certificate**: A certificate that has been revoked
-- **Missing Certificate**: Simulates a missing certificate file
-- **Key Mismatch**: A certificate with a mismatched private key
-- **No Password**: A P12 file without a password
-- **Wrong Password**: A P12 file with an unexpected password
-
-### CA Issues
-- **Expired CA**: A CA certificate with an expiry date in the past
-- **Corrupted CA**: A CA certificate with invalid format
-- **Untrusted Root**: A root CA that isn't in the trust store
-- **Revoked CA**: A CA certificate that has been revoked
+- **[CA_NAME]_chain.pem**: Contains the certificate chain for a CA
+  - For root CAs: Contains only the root CA certificate
+  - For intermediate CAs: Contains the intermediate CA certificate followed by its parent CA chain

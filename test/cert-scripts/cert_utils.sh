@@ -5,13 +5,25 @@
 # Default directory for certificates
 CERT_DIR="/etc/pki"
 
+# Echo function that prints only when DEBUG_ENABLED is set
+echo_t() {
+    if [ "${DEBUG_ENABLED:-false}" = "true" ]; then
+        echo "[CERT-DEBUG] $*"
+    fi
+}
+
+# Always echo function - for critical messages that should always be displayed
+echo_a() {
+    echo "$*"
+}
+
 # Generate private key using ECC
 generate_private_key() {
   local name=$1
   local key_dir=$2
   local curve=$3
 
-  echo "Generating ECC key with curve ${curve} for ${name}"
+  echo_t "Generating ECC key with curve ${curve} for ${name}"
   if [ ! -d "${key_dir}" ]; then
     mkdir -p "${key_dir}"
   fi
@@ -21,7 +33,7 @@ generate_private_key() {
   # Set appropriate permissions
   chmod 600 "${key_dir}/${name}.key"
 
-  echo "Key generated at ${key_dir}/${name}.key"
+  echo_t "Key generated at ${key_dir}/${name}.key"
 }
 
 # Create Certificate Signing Request (CSR)
@@ -32,7 +44,7 @@ create_csr() {
   local csr_path=$4
   local cn=$5
 
-  echo "Creating CSR for ${name}..."
+  echo_t "Creating CSR for ${name}..."
 
   # Create a temporary config with the correct CN
   local temp_config="${config_path}.tmp"
@@ -44,7 +56,7 @@ create_csr() {
   # Remove the temporary config
   rm -f "${temp_config}"
 
-  echo "CSR generated at ${csr_path}"
+  echo_t "CSR generated at ${csr_path}"
 }
 
 # Sign a certificate with a CA
@@ -59,7 +71,7 @@ sign_certificate() {
   local extensions=$8    # Extensions section name in config
   local pathlen=$9       # Optional pathlen constraint for intermediate CAs
 
-  echo "Signing certificate using ${cert_type} extensions..."
+  echo_t "Signing certificate using ${cert_type} extensions..."
 
   # Default to v3_ca extensions if not specified
   if [ -z "${extensions}" ]; then
@@ -91,7 +103,7 @@ sign_certificate() {
   # Remove the temporary config
   rm -f "${temp_config}"
 
-  echo "Certificate signed and saved to ${output_cert}"
+  echo_t "Certificate signed and saved to ${output_cert}"
 }
 
 # Create a self-signed certificate
@@ -103,7 +115,7 @@ create_self_signed_cert() {
   local validity=$5
   local cn=$6
 
-  echo "Creating self-signed certificate for ${name}..."
+  echo_t "Creating self-signed certificate for ${name}..."
 
   # Create a temporary config with the correct CN
   local temp_config="${config_path}.tmp"
@@ -119,7 +131,7 @@ create_self_signed_cert() {
   # Remove the temporary config
   rm -f "${temp_config}"
 
-  echo "Self-signed certificate generated at ${cert_path}"
+  echo_t "Self-signed certificate generated at ${cert_path}"
 }
 
 # Create certificate chain
@@ -128,16 +140,16 @@ create_cert_chain() {
   local parent_chain=$2
   local output_chain=$3
 
-  echo "Creating certificate chain..."
+  echo_t "Creating certificate chain..."
 
   # Check if all required certificates exist
   if [ -z "${cert}" ] || [ ! -f "${cert}" ]; then
-    echo "Error: Certificate file not found at ${cert}"
+    echo_a "Error: Certificate file not found at ${cert}"
     return 1
   fi
 
   if [ -z "${parent_chain}" ] || [ ! -f "${parent_chain}" ]; then
-    echo "Error: Parent chain file not found at ${parent_chain}"
+    echo_a "Error: Parent chain file not found at ${parent_chain}"
     return 1
   fi
 
@@ -146,11 +158,11 @@ create_cert_chain() {
 
   # Check if chain creation was successful
   if [ ! -f "${output_chain}" ]; then
-    echo "Error: Failed to create certificate chain at ${output_chain}"
+    echo_a "Error: Failed to create certificate chain at ${output_chain}"
     return 1
   fi
 
-  echo "Certificate chain created at ${output_chain}"
+  echo_t "Certificate chain created at ${output_chain}"
   return 0
 }
 
@@ -163,23 +175,23 @@ create_pkcs12() {
   local password=$5
   local name=$6
 
-  echo "Creating PKCS#12 keystore for ${name}..."
+  echo_t "Creating PKCS#12 keystore for ${name}..."
 
   # Check if all required files exist
   if [ ! -f "${cert}" ]; then
-    echo "Error: Certificate file not found at ${cert}"
+    echo_a "Error: Certificate file not found at ${cert}"
     return 1
   fi
 
   if [ ! -f "${key}" ]; then
-    echo "Error: Private key file not found at ${key}"
+    echo_a "Error: Private key file not found at ${key}"
     return 1
   fi
 
   # For chain file, use a fallback if it doesn't exist
   local chain_file="${chain}"
   if [ ! -f "${chain_file}" ]; then
-    echo "Warning: Certificate chain file not found at ${chain}. Using certificate itself as chain."
+    echo_a "Warning: Certificate chain file not found at ${chain}. Using certificate itself as chain."
     chain_file="${cert}"
   fi
 
@@ -208,11 +220,11 @@ create_pkcs12() {
 
   # Verify that the file was created
   if [ ! -f "${output_p12}" ]; then
-    echo "Error: Failed to create PKCS#12 file at ${output_p12}"
+    echo_a "Error: Failed to create PKCS#12 file at ${output_p12}"
     return 1
   fi
 
-  echo "PKCS#12 keystore created at ${output_p12}"
+  echo_t "PKCS#12 keystore created at ${output_p12}"
   return 0
 }
 
@@ -220,7 +232,7 @@ create_pkcs12() {
 corrupt_certificate() {
   local cert_path=$1
 
-  echo "Corrupting certificate at ${cert_path}..."
+  echo_t "Corrupting certificate at ${cert_path}..."
 
   # Make a backup first
   cp "${cert_path}" "${cert_path}.bak"
@@ -228,7 +240,7 @@ corrupt_certificate() {
   # Corrupt the certificate by replacing some bytes
   dd if=/dev/urandom bs=1 count=10 seek=100 conv=notrunc of="${cert_path}" 2>/dev/null
 
-  echo "Certificate corrupted. Original backed up at ${cert_path}.bak"
+  echo_t "Certificate corrupted. Original backed up at ${cert_path}.bak"
 }
 
 # Revoke a certificate (create CRL)
@@ -239,7 +251,7 @@ revoke_certificate() {
   local ca_config=$4
   local output_crl=$5
 
-  echo "Revoking certificate..."
+  echo_t "Revoking certificate..."
 
   # Create a temporary database if it doesn't exist
   local ca_dir=$(dirname "${ca_cert}")
@@ -265,7 +277,7 @@ revoke_certificate() {
     -gencrl \
     -out "${output_crl}"
 
-  echo "Certificate revoked. CRL saved to ${output_crl}"
+  echo_t "Certificate revoked. CRL saved to ${output_crl}"
 }
 
 # Create base OpenSSL config file
@@ -273,11 +285,11 @@ create_openssl_config() {
   local output_path="${CERT_DIR}/openssl.cnf"
 
   if [ -f "${output_path}" ]; then
-    echo "OpenSSL config file already exists at ${output_path}"
+    echo_t "OpenSSL config file already exists at ${output_path}"
     return 0
   fi
 
-  echo "Creating OpenSSL config file..."
+  echo_t "Creating OpenSSL config file..."
 
   cat > "${output_path}" << EOF
 [ req ]
@@ -337,5 +349,5 @@ keyUsage = critical, digitalSignature, keyEncipherment
 extendedKeyUsage = clientAuth
 EOF
 
-  echo "OpenSSL config file created at ${output_path}"
+  echo_t "OpenSSL config file created at ${output_path}"
 }

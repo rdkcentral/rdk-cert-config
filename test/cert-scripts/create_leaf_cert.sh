@@ -3,7 +3,6 @@
 # Usage: create_leaf_cert.sh --cert-name <CERT_NAME> --ca-name <CA_NAME> [OPTIONS]
 #
 # This script creates a leaf certificate signed by a Certificate Authority (CA).
-#
 # Options:
 #   --cert-name <n>      Name of the certificate to create (required)
 #   --ca-name <n>        Name of the CA to sign with (required)
@@ -53,13 +52,13 @@ get_ca_path() {
 
   # Check if we found a valid CA path
   if [ -z "${path}" ] || [ ! -d "${path}" ] || [ ! -f "${path}/certs/${name}.pem" ] || [ ! -f "${path}/private/${name}.key" ]; then
-    echo "Error: Could not find a valid CA directory for ${name}" >&2
-    echo "Make sure the CA exists and has a valid certificate at \${CERT_DIR}/[path]/${name}/certs/${name}.pem" >&2
-    echo "and a valid private key at \${CERT_DIR}/[path]/${name}/private/${name}.key" >&2
+    echo_a "Error: Could not find a valid CA directory for ${name}" >&2
+    echo_t "Make sure the CA exists and has a valid certificate at \${CERT_DIR}/[path]/${name}/certs/${name}.pem" >&2
+    echo_t "and a valid private key at \${CERT_DIR}/[path]/${name}/private/${name}.key" >&2
     return 1
   fi
 
-  echo "${path}"
+  echo_t "${path}"
   return 0
 }
 
@@ -76,7 +75,7 @@ CERT_PASSWORD="changeit"
 # Parse command line arguments
 parse_args() {
   if [ $# -eq 0 ]; then
-    echo "Error: Missing required arguments"
+    echo_a "Error: Missing required arguments"
     show_help
     exit 1
   fi
@@ -96,7 +95,7 @@ parse_args() {
         if [ "$2" = "server" ] || [ "$2" = "client" ]; then
           CERT_TYPE="$2"
         else
-          echo "Error: Invalid certificate type. Use 'server' or 'client'"
+          echo_a "Error: Invalid certificate type. Use 'server' or 'client'"
           exit 1
         fi
         shift 2
@@ -117,8 +116,8 @@ parse_args() {
             ECC_CURVE="secp521r1"
             ;;
           *)
-            echo "Error: Invalid ECC curve specified"
-            echo "Valid options: prime256v1, secp384r1, secp521r1"
+            echo_a "Error: Invalid ECC curve specified"
+            echo_t "Valid options: prime256v1, secp384r1, secp521r1"
             exit 1
             ;;
         esac
@@ -127,39 +126,39 @@ parse_args() {
       --expired)
         VALIDITY="-1"  # -1 is the minimum value OpenSSL accepts
         FAILURE_MODE="expired"
-        echo "Setting certificate to be expired (backdated by 1 day)..."
+        echo_t "Setting certificate to be expired (backdated by 1 day)..."
         shift
         ;;
       --corrupted)
         FAILURE_MODE="corrupted"
-        echo "Certificate will be corrupted after creation..."
+        echo_t "Certificate will be corrupted after creation..."
         shift
         ;;
       --revoked)
         FAILURE_MODE="revoked"
-        echo "Certificate will be revoked after creation..."
+        echo_t "Certificate will be revoked after creation..."
         shift
         ;;
       --key-mismatch)
         FAILURE_MODE="key-mismatch"
-        echo "Certificate will have mismatched key..."
+        echo_t "Certificate will have mismatched key..."
         shift
         ;;
       --no-password)
         FAILURE_MODE="no-password"
         CERT_PASSWORD=""
-        echo "P12 file will have no password..."
+        echo_t "P12 file will have no password..."
         shift
         ;;
       --wrong-password)
         FAILURE_MODE="wrong-password"
         CERT_PASSWORD="incorrect-password"
-        echo "P12 file will have incorrect password..."
+        echo_t "P12 file will have incorrect password..."
         shift
         ;;
       --missing-cert)
         FAILURE_MODE="missing-cert"
-        echo "Will simulate missing certificate file..."
+        echo_t "Will simulate missing certificate file..."
         shift
         ;;
       --help)
@@ -167,7 +166,7 @@ parse_args() {
         exit 0
         ;;
       *)
-        echo "Unknown option: $1"
+        echo_t "Unknown option: $1"
         show_help
         exit 1
         ;;
@@ -176,12 +175,12 @@ parse_args() {
 
   # Validate required parameters
   if [ -z "$CERT_NAME" ]; then
-    echo "Error: Certificate name is required (--cert-name)"
+    echo_a "Error: Certificate name is required (--cert-name)"
     exit 1
   fi
 
   if [ -z "$CA_NAME" ]; then
-    echo "Error: CA name is required (--ca-name)"
+    echo_a "Error: CA name is required (--ca-name)"
     exit 1
   fi
 }
@@ -224,17 +223,17 @@ EOF
 setup_cert_dirs() {
   local ca_path=$1
 
-  echo "Using existing CA directories for ${CERT_NAME} under ${CA_NAME} at ${ca_path}..."
+  echo_t "Using existing CA directories for ${CERT_NAME} under ${CA_NAME} at ${ca_path}..."
 
   # Create csr directory if it doesn't exist
   if [ ! -d "${ca_path}/csr" ]; then
-    echo "Creating CSR directory at ${ca_path}/csr"
+    echo_t "Creating CSR directory at ${ca_path}/csr"
     mkdir -p "${ca_path}/csr"
 
     # Check if directory creation was successful
     if [ ! -d "${ca_path}/csr" ]; then
-      echo "Error: Failed to create CSR directory at ${ca_path}/csr"
-      echo "Please check filesystem permissions and try again."
+      echo_a "Error: Failed to create CSR directory at ${ca_path}/csr"
+      echo_t "Please check filesystem permissions and try again."
       exit 1
     fi
   fi
@@ -271,8 +270,8 @@ generate_leaf_cert() {
 
   # Check if CSR creation was successful
   if [ $? -ne 0 ]; then
-    echo "Error: Failed to create CSR for ${CERT_NAME}."
-    echo "Please check that the private key exists and is valid at ${ca_path}/private/${CERT_NAME}.key"
+    echo_a "Error: Failed to create CSR for ${CERT_NAME}."
+    echo_t "Please check that the private key exists and is valid at ${ca_path}/private/${CERT_NAME}.key"
     exit 1
   fi
 
@@ -288,8 +287,8 @@ generate_leaf_cert() {
 
     # Check if certificate signing was successful
     if [ $? -ne 0 ]; then
-      echo "Error: Certificate signing failed for ${CERT_NAME}."
-      echo "Please check the CA certificate and private key at ${ca_path}."
+      echo_a "Error: Certificate signing failed for ${CERT_NAME}."
+      echo_t "Please check the CA certificate and private key at ${ca_path}."
       exit 1
     fi
 
@@ -297,8 +296,8 @@ generate_leaf_cert() {
   local chain_file="${ca_path}/${CA_NAME}_chain.pem"
 
   if [ ! -f "${chain_file}" ]; then
-    echo "CA chain file not found at ${chain_file}"
-    echo "Creating a simple chain with the CA certificate"
+    echo_t "CA chain file not found at ${chain_file}"
+    echo_t "Creating a simple chain with the CA certificate"
     chain_file="${ca_path}/certs/${CA_NAME}.pem"
   fi
 
@@ -313,14 +312,14 @@ generate_leaf_cert() {
 
   # Check if PKCS#12 creation was successful
   if [ $? -ne 0 ]; then
-    echo "Error: Failed to create PKCS#12 file for ${CERT_NAME}."
-    echo "Please check that all required files exist and are valid."
+    echo_a "Error: Failed to create PKCS#12 file for ${CERT_NAME}."
+    echo_t "Please check that all required files exist and are valid."
     exit 1
   fi
 
-  echo "Leaf certificate created at ${ca_path}/certs/${CERT_NAME}.pem"
-  echo "Private key created at ${ca_path}/private/${CERT_NAME}.key"
-  echo "PKCS#12 file created at ${ca_path}/certs/${CERT_NAME}.p12"
+  echo_t "Leaf certificate created at ${ca_path}/certs/${CERT_NAME}.pem"
+  echo_t "Private key created at ${ca_path}/private/${CERT_NAME}.key"
+  echo_t "PKCS#12 file created at ${ca_path}/certs/${CERT_NAME}.p12"
 
   # Handle failure modes if specified
   if [ "${FAILURE_MODE}" = "corrupted" ]; then
@@ -328,7 +327,7 @@ generate_leaf_cert() {
   elif [ "${FAILURE_MODE}" = "revoked" ]; then
     # Make sure the CRL directory exists
     if [ ! -d "${ca_path}/crl" ]; then
-      echo "Creating CRL directory at ${ca_path}/crl"
+      echo_t "Creating CRL directory at ${ca_path}/crl"
       mkdir -p "${ca_path}/crl"
     fi
 
@@ -342,7 +341,7 @@ generate_leaf_cert() {
     # Create a backup then remove
     cp "${ca_path}/certs/${CERT_NAME}.pem" "${ca_path}/certs/${CERT_NAME}.pem.bak"
     rm -f "${ca_path}/certs/${CERT_NAME}.pem"
-    echo "Certificate deliberately removed (backup saved as ${CERT_NAME}.pem.bak)"
+    echo_t "Certificate deliberately removed (backup saved as ${CERT_NAME}.pem.bak)"
   fi
 
   # Create a README for the certificate
@@ -355,18 +354,18 @@ create_leaf_readme() {
 
   # Create README file
   # Print certificate information
-  echo "${CERT_NAME} - ${CERT_TYPE} Certificate created"
-  echo "Certificate path: ${ca_path}/certs/${CERT_NAME}.pem"
-  echo "Private key path: ${ca_path}/private/${CERT_NAME}.key"
-  echo "PKCS#12 file: ${ca_path}/certs/${CERT_NAME}.p12"
+  echo_t "${CERT_NAME} - ${CERT_TYPE} Certificate created"
+  echo_t "Certificate path: ${ca_path}/certs/${CERT_NAME}.pem"
+  echo_t "Private key path: ${ca_path}/private/${CERT_NAME}.key"
+  echo_t "PKCS#12 file: ${ca_path}/certs/${CERT_NAME}.p12"
 EOF
 
   if [ ! -z "${FAILURE_MODE}" ]; then
-    echo "ATTENTION: This certificate has been deliberately ${FAILURE_MODE} for testing purposes."
+    echo_t "ATTENTION: This certificate has been deliberately ${FAILURE_MODE} for testing purposes."
   fi
 
   if [ ! -z "${CERT_PASSWORD}" ]; then
-    echo "PKCS#12 Password: ${CERT_PASSWORD}"
+    echo_t "PKCS#12 Password: ${CERT_PASSWORD}"
   else
     # No password case
 
@@ -385,12 +384,12 @@ main() {
 
   # Check if get_ca_path succeeded
   if [ $? -ne 0 ] || [ -z "${ca_path}" ]; then
-    echo "Error: Failed to determine a valid path for CA '${CA_NAME}'"
-    echo "Please make sure the CA exists and has the expected directory structure."
+    echo_a "Error: Failed to determine a valid path for CA '${CA_NAME}'"
+    echo_t "Please make sure the CA exists and has the expected directory structure."
     exit 1
   fi
 
-  echo "Using CA path: ${ca_path}"
+  echo_t "Using CA path: ${ca_path}"
 
   # Create certificate directory structure
   setup_cert_dirs "${ca_path}"
@@ -398,18 +397,18 @@ main() {
   # Generate leaf certificate
   generate_leaf_cert "${ca_path}"
 
-  echo "Certificate generation complete."
+  echo_t "Certificate generation complete."
 
   # Display certificate details if OpenSSL is available
   if command -v openssl &>/dev/null; then
-    echo "------------------------------"
-    echo "Certificate details:"
-    echo "------------------------------"
+    echo_t "------------------------------"
+    echo_t "Certificate details:"
+    echo_t "------------------------------"
     openssl x509 -in "${ca_path}/certs/${CERT_NAME}.pem" -text -noout | grep -E "Subject:|Issuer:|Validity|Public Key"
-    echo "------------------------------"
+    echo_t "------------------------------"
   fi
 
-  echo "Certificate available at ${ca_path}/certs/${CERT_NAME}.pem"
+  echo_t "Certificate available at ${ca_path}/certs/${CERT_NAME}.pem"
 }
 
 # Run the script
