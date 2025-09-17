@@ -58,7 +58,7 @@ get_ca_path() {
     return 1
   fi
 
-  echo_t "${path}"
+  echo "${path}"
   return 0
 }
 
@@ -399,15 +399,13 @@ main() {
 
   echo_t "Certificate generation complete."
 
-  # Display certificate details if OpenSSL is available
-  if command -v openssl &>/dev/null; then
-    echo_t "------------------------------"
-    echo_t "Certificate details:"
-    echo_t "------------------------------"
-    openssl x509 -in "${ca_path}/certs/${CERT_NAME}.pem" -text -noout | grep -E "Subject:|Issuer:|Validity|Public Key"
-    echo_t "------------------------------"
-  fi
-
+  # Display certificate details
+  echo_t "------------------------------"
+  echo_t "Certificate details:"
+  echo_t "------------------------------"
+  local cert_details=$(openssl x509 -in "${ca_path}/certs/${CERT_NAME}.pem" -text -noout | grep -E "Subject:|Issuer:|Validity|Public Key")
+  echo_t "${cert_details}"
+  echo_t "------------------------------"
   echo_t "Certificate available at ${ca_path}/certs/${CERT_NAME}.pem"
 }
 

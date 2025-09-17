@@ -381,15 +381,14 @@ main() {
   local ca_path=$(get_ca_path "${CA_NAME}" "${PARENT_CA}")
   echo_t "CA certificate generation complete."
 
-  # Display certificate details if OpenSSL is available
-  if command -v openssl &>/dev/null; then
-    echo_t "------------------------------"
-    echo_t "Certificate details:"
-    echo_t "------------------------------"
-    openssl x509 -in "${ca_path}/certs/${CA_NAME}.pem" -text -noout | grep -E "Subject:|Issuer:|Validity|Basic Constraints|Key Usage"
-    echo_t "------------------------------"
-  fi
-
+  # Display certificate details
+  echo_t "------------------------------"
+  echo_t "Certificate details:"
+  echo_t "------------------------------"
+  # Capture the output and print using echo_t to respect debug settings
+  local cert_details=$(openssl x509 -in "${ca_path}/certs/${CA_NAME}.pem" -text -noout | grep -E "Subject:|Issuer:|Validity|Basic Constraints|Key Usage")
+  echo_t "${cert_details}"
+  echo_t "------------------------------"
   echo_t "Certificate available at ${ca_path}/certs/${CA_NAME}.pem"
 }
 
