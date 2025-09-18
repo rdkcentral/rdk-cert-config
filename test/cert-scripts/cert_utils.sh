@@ -46,7 +46,7 @@ create_csr() {
 
   echo_t "Creating CSR for ${name}..."
 
-  # Create a temporary config with the correct CN
+  # Create a temporary config with the correct CN and SAN fields
   local temp_config="${config_path}.tmp"
   sed "s/@COMMON_NAME@/${cn}/g" "${config_path}" > "${temp_config}"
 
@@ -82,12 +82,20 @@ sign_certificate() {
   local temp_config="${ca_config}.tmp"
   cp "${ca_config}" "${temp_config}"
 
+  # Extract CN from the CSR to use in the SAN field if needed
+  local cn=$(openssl req -in "${csr_path}" -noout -subject | sed -n 's/.*CN\s*=\s*\([^,]*\).*/\1/p')
+
   # Apply pathlen constraint if specified and using intermediate CA extensions
   if [ "${extensions}" = "v3_intermediate_ca" ] && [ ! -z "${pathlen}" ]; then
     sed -i "s/@PATHLEN@/${pathlen}/g" "${temp_config}"
   else
     # Default pathlen for intermediate CAs
     sed -i "s/@PATHLEN@/1/g" "${temp_config}"
+  fi
+
+  # Apply common name to SAN field if this is a server certificate
+  if [ "${cert_type}" = "server" ] && [ ! -z "${cn}" ]; then
+    sed -i "s/@COMMON_NAME@/${cn}/g" "${temp_config}"
   fi
 
   # Sign the certificate
@@ -306,6 +314,7 @@ subjectAltName = @alt_names
 
 [ alt_names ]
 DNS.1 = localhost
+DNS.2 = @COMMON_NAME@
 IP.1 = 127.0.0.1
 
 [ req_distinguished_name ]
@@ -338,6 +347,7 @@ subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid,issuer:always
 keyUsage = critical, digitalSignature, keyEncipherment
 extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
 
 [ client_cert ]
 basicConstraints = CA:FALSE

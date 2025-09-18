@@ -71,6 +71,7 @@ ECC_CURVE="prime256v1"
 VALIDITY=365
 FAILURE_MODE=""
 CERT_PASSWORD="changeit"
+COMMON_NAME=""  # CN parameter for certificate
 
 # Parse command line arguments
 parse_args() {
@@ -89,6 +90,10 @@ parse_args() {
         ;;
       --ca-name)
         CA_NAME="$2"
+        shift 2
+        ;;
+      --cn)
+        COMMON_NAME="$2"
         shift 2
         ;;
       --type)
@@ -183,6 +188,11 @@ parse_args() {
     echo_a "Error: CA name is required (--ca-name)"
     exit 1
   fi
+
+  if [ -z "$COMMON_NAME" ]; then
+    echo_a "Error: Common Name is required (--cn)"
+    exit 1
+  fi
 }
 
 show_help() {
@@ -194,6 +204,7 @@ This script creates a leaf certificate signed by a Certificate Authority (CA).
 Options:
   --cert-name <n>      Name of the certificate to create (required)
   --ca-name <n>        Name of the CA to sign with (required)
+  --cn <COMMON_NAME>      Common Name for certificate (required for server certificates)
   --type <TYPE>           Certificate type: 'server' or 'client' (default: client)
   --validity <DAYS>       Validity period in days (default: 365)
   --ecc-curve <CURVE>     ECC curve to use (default: prime256v1)
@@ -266,7 +277,7 @@ generate_leaf_cert() {
     "${CERT_DIR}/openssl.cnf" \
     "${ca_path}/private/${CERT_NAME}.key" \
     "${ca_path}/csr/${CERT_NAME}.csr" \
-    "${CERT_NAME}"
+    "${COMMON_NAME}"
 
   # Check if CSR creation was successful
   if [ $? -ne 0 ]; then
