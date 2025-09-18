@@ -26,7 +26,7 @@ source "$(dirname "$0")/cert_utils.sh"
 CA_NAME=""
 PARENT_CA=""
 ECC_CURVE="prime256v1"
-VALIDITY=3650
+VALIDITY=1
 PATHLEN=""
 FAILURE_MODE=""
 
