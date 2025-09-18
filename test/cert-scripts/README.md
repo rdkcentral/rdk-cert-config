@@ -13,11 +13,11 @@ This directory contains scripts for generating test certificates for various PKI
 
 ## Installation
 
-The scripts are installed in Docker images in `/usr/local/share/cert-scripts/` and can be used in two ways:
+The scripts are installed in Docker images in `/usr/share/cert-scripts/` and can be used in two ways:
 
 1. Directly from the installation directory:
    ```bash
-   /usr/local/share/cert-scripts/generate_test_rdk_certs.sh --type <TYPE> [OPTIONS]
+   /usr/share/cert-scripts/generate_test_rdk_certs.sh --type <TYPE> [OPTIONS]
    ```
 
 2. Using the symlink at `/etc/pki/scripts/`:
@@ -36,6 +36,7 @@ The scripts are installed in Docker images in `/usr/local/share/cert-scripts/` a
 ### Required Parameters
 
 - `--type <TYPE>`: Certificate type (must be "server" or "client")
+- `--cn <COMMON_NAME>`: Common Name (CN) for the leaf certificate
 
 ### Optional Parameters
 
@@ -63,17 +64,17 @@ The scripts are installed in Docker images in `/usr/local/share/cert-scripts/` a
 
 #### Generate standard client certificates
 ```bash
-./generate_test_rdk_certs.sh --type client
+./generate_test_rdk_certs.sh --type client --cn "rdkclient"
 ```
 
 #### Generate server certificates with P-384 curve
 ```bash
-./generate_test_rdk_certs.sh --type server --ecc-p384
+./generate_test_rdk_certs.sh --type server --cn "mockxconf" --ecc-p384
 ```
 
 #### Generate expired client certificate
 ```bash
-./generate_test_rdk_certs.sh --type client --expired-cert
+./generate_test_rdk_certs.sh --type client --cn "rdkclient" --expired-cert
 ```
 
 ## Certificate Directory Structure
@@ -113,3 +114,8 @@ The certificates are organized in a hierarchical directory structure:
 - **[CA_NAME]_chain.pem**: Contains the certificate chain for a CA
   - For root CAs: Contains only the root CA certificate
   - For intermediate CAs: Contains the intermediate CA certificate followed by its parent CA chain
+
+## Docker Integration
+
+For details on how these certificate scripts are used in Docker containers for testing mTLS functionality, please refer to:
+- [README-docker-integration.md](./README-docker-integration.md)
