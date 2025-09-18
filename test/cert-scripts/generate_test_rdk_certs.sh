@@ -3,6 +3,7 @@
 # Usage: generate_test_rdk_certs.sh --type <TYPE> [OPTION]
 #  Required:
 #    --type <TYPE>          Certificate type: must be "server" or "client"
+#    --cn <COMMON_NAME>     Common Name (CN) for the leaf certificate
 #
 #  Options:
 #    --expired-cert          Generate a leaf certificate that is already expired
@@ -34,6 +35,7 @@ FAILURE_MODE=""
 CERT_PASSWORD="changeit"
 ECC_CURVE="prime256v1" # Default is P-256
 CERT_TYPE=""           # Must be specified as "server" or "client"
+COMMON_NAME=""         # Must be specified for the leaf certificate
 ROOT_CA_OPTIONS=""     # Options for root CA creation
 ICA_OPTIONS=""         # Options for intermediate CA creation
 LEAF_CERT_OPTIONS=""   # Options for leaf certificate creation
@@ -52,6 +54,7 @@ It uses the create_ca.sh and create_leaf_cert.sh scripts to do this.
 
 Required:
   --type <TYPE>           Certificate type: must be "server" or "client"
+  --cn <COMMON_NAME>      Common Name (CN) for the leaf certificate
 
 Options:
   --expired-cert          Generate a leaf certificate that is already expired
@@ -90,16 +93,27 @@ parse_args() {
     fi
   done
 
-  # Process all arguments to find the type parameter
+  # Process all arguments to find the required parameters
+  TYPE_ARG=false
+  CN_ARG=false
+
   for arg in "$@"; do
     if [ "$arg" == "--type" ]; then
       TYPE_ARG=true
-      break
+    fi
+    if [ "$arg" == "--cn" ]; then
+      CN_ARG=true
     fi
   done
 
-  if [ -z "$TYPE_ARG" ]; then
+  if [ "$TYPE_ARG" != "true" ]; then
     echo "Error: Missing required --type argument"
+    show_help
+    exit 1
+  fi
+
+  if [ "$CN_ARG" != "true" ]; then
+    echo "Error: Missing required --cn argument"
     show_help
     exit 1
   fi
@@ -112,6 +126,16 @@ parse_args() {
           shift 2
         else
           echo "Error: Invalid certificate type. Must be 'server' or 'client'."
+          show_help
+          exit 1
+        fi
+        ;;
+      --cn)
+        if [ -n "$2" ]; then
+          COMMON_NAME="$2"
+          shift 2
+        else
+          echo "Error: Common Name (CN) value is required."
           show_help
           exit 1
         fi
@@ -263,12 +287,12 @@ generate_certificates() {
     echo "The --revoked-root option has no effect on certificate generation"
   fi
 
-  # Generate Leaf Certificate based on type
-  CERT_NAME="test-rdk-${CERT_TYPE}-cert"
-  echo "Generating ${CERT_TYPE} certificate..."
+  # Generate Leaf Certificate based on type - use CN as the certificate name
+  CERT_NAME="${COMMON_NAME}"
+  echo "Generating ${CERT_TYPE} certificate with name '${CERT_NAME}'..."
 
   # Single call to create_leaf_cert.sh with the appropriate options
-  "${SCRIPT_DIR}/create_leaf_cert.sh" --cert-name "${CERT_NAME}" --ca-name "${ICA_NAME}" --type "${CERT_TYPE}" --ecc-curve "$ECC_CURVE" $LEAF_CERT_OPTIONS
+  "${SCRIPT_DIR}/create_leaf_cert.sh" --cert-name "${CERT_NAME}" --ca-name "${ICA_NAME}" --type "${CERT_TYPE}" --ecc-curve "$ECC_CURVE" --cn "${COMMON_NAME}" $LEAF_CERT_OPTIONS
 }
 
 # Copy files to test scenarios directory if needed
