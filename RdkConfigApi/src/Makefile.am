@@ -18,15 +18,26 @@
 # Automake options
 AUTOMAKE_OPTIONS = foreign
 
-AM_CPPFLAGS = -I$(top_srcdir)/RdkConfigApi/include
+AM_CPPFLAGS = -I$(top_srcdir)/RdkConfigApi/include -I$(top_builddir)
+if TEST_RDK_CERTS
+AM_CPPFLAGS += -DTEST_RDK_CERTS
+endif
 AM_CFLAGS = -Werror -Wall -Os $(CFLAGS)
 
 # Source files for GetConfigFile binary
 bin_PROGRAMS = GetConfigFile
+if TEST_RDK_CERTS
+GetConfigFile_SOURCES = GetSaveConfigFile.c rdkconfig.c test_rdkconfig.c
+else
 GetConfigFile_SOURCES = GetSaveConfigFile.c rdkconfig.c
+endif
 GetConfigFile_CFLAGS = $(AM_CFLAGS)
 
 # Source files for rdkconfig static library
 noinst_LIBRARIES = librdkconfig.a
+if TEST_RDK_CERTS
+librdkconfig_a_SOURCES = rdkconfig.c test_rdkconfig.c
+else
 librdkconfig_a_SOURCES = rdkconfig.c
+endif
 librdkconfig_a_CFLAGS = $(AM_CFLAGS)
