@@ -21,6 +21,7 @@
 #include <string.h>
 #include "rdkconfig.h"
 
+#ifndef TEST_RDK_CERTS
 // rdkconfig_get - get credential by reference name, allocate space, fill buffer
 // return new buffer and size of data (actual memory buffer may be larger)
 // return value: RDKCONFIG_OK or RDKCONFIG_FAIL
@@ -36,9 +37,10 @@ int rdkconfig_get( uint8_t **sbuff, size_t *sbuffsz, const char *refname ) {
 // return value: RDKCONFIG_OK or RDKCONFIG_FAIL
 int rdkconfig_getStr( char **sbuff, size_t *sbuffsz, const char *refname ) {
 	/* This is stub function, Needs implemetation */
-	printf("rdkconfig_get not implemented yet\n");
+	printf("rdkconfig_getStr not implemented yet\n");
 	return RDKCONFIG_FAIL;
 }
+#endif
 
 // rdkconfig_set - store credential by reference name
 // return value: RDKCONFIG_OK or RDKCONFIG_FAIL
