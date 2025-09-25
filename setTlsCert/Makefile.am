@@ -1,4 +1,8 @@
-# Copyright 2024 Comcast Cable Communications Management, LLC
+##########################################################################
+# If not stated otherwise in this file or this component's Licenses.txt
+# file the following copyright and licenses apply:
+#
+# Copyright 2018 RDK Management
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,15 +15,5 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# SPDX-License-Identifier: Apache-2.0
-#
-
-if CSPC_RDKCONFIG_SUPPORT_ENABLED
-SUBDIRS = CertSelector setTlsCert
-else
-SUBDIRS = RdkConfigApi CertSelector setTlsCert
-endif
-if CSPC_L2_TEST
-SUBDIRS += test
-endif
+##########################################################################
+SUBDIRS = src
