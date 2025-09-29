@@ -26,7 +26,8 @@
 #   --ca-name <n>        Name of the CA to sign with (required)
 #   --type <TYPE>           Certificate type: 'server' or 'client' (default: client)
 #   --validity <DAYS>       Validity period in days (default: 365)
-#   --ecc-curve <CURVE>     ECC curve to use (default: prime256v1)
+#   --key-type <TYPE>       Key type: 'rsa' or 'ecc' (auto-selected based on cert type if not specified)
+#   --key-size <SIZE>       RSA key size in bits (default: 2048) or ECC curve name (default: prime256v1)
 #                           Options: prime256v1 (P-256), secp384r1 (P-384), secp521r1 (P-521)
 #   --expired               Generate an expired certificate
 #   --corrupted             Generate a corrupted certificate
@@ -85,7 +86,8 @@ CERT_NAME=""
 CA_NAME=""
 PARENT_CA=""  # Will be determined later if needed
 CERT_TYPE="client"
-ECC_CURVE="prime256v1"
+KEY_TYPE="ecc"  # Default to ECC
+KEY_SIZE="prime256v1"  # Default ECC curve or RSA key size
 VALIDITY=1
 FAILURE_MODE=""
 CERT_PASSWORD="changeit"
@@ -127,23 +129,17 @@ parse_args() {
         VALIDITY="$2"
         shift 2
         ;;
-      --ecc-curve)
-        case "$2" in
-          p256|prime256v1)
-            ECC_CURVE="prime256v1"
-            ;;
-          p384|secp384r1)
-            ECC_CURVE="secp384r1"
-            ;;
-          p521|secp521r1)
-            ECC_CURVE="secp521r1"
-            ;;
-          *)
-            echo_a "Error: Invalid ECC curve specified"
-            echo_t "Valid options: prime256v1, secp384r1, secp521r1"
-            exit 1
-            ;;
-        esac
+      --key-type)
+        if [[ "$2" == "rsa" || "$2" == "ecc" ]]; then
+          KEY_TYPE="$2"
+        else
+          echo_a "Error: Invalid key type. Must be 'rsa' or 'ecc'"
+          exit 1
+        fi
+        shift 2
+        ;;
+      --key-size)
+        KEY_SIZE="$2"
         shift 2
         ;;
       --expired)
@@ -225,8 +221,8 @@ Options:
   --cn <COMMON_NAME>      Common Name for certificate (required for server certificates)
   --type <TYPE>           Certificate type: 'server' or 'client' (default: client)
   --validity <DAYS>       Validity period in days (default: 365)
-  --ecc-curve <CURVE>     ECC curve to use (default: prime256v1)
-                          Options: prime256v1 (P-256), secp384r1 (P-384), secp521r1 (P-521)
+  --key-type <TYPE>       Key type: 'rsa' or 'ecc' (default: ecc)
+  --key-size <SIZE>       RSA key size in bits or ECC curve name (default: prime256v1)
   --expired               Generate an expired certificate
   --corrupted             Generate a corrupted certificate
   --revoked               Generate a revoked certificate
@@ -278,16 +274,19 @@ generate_leaf_cert() {
   # Determine which extensions section to use (server or client)
   local cert_extensions="${CERT_TYPE}_cert"
 
-  # Generate certificate key
+  # Generate certificate key using specified parameters
   if [ "${FAILURE_MODE}" = "key-mismatch" ]; then
-    # Generate a mismatched key (different curve)
-    local mismatch_curve="secp521r1"
-    if [ "${ECC_CURVE}" = "secp521r1" ]; then
-      mismatch_curve="prime256v1"
+    # Generate a mismatched key (opposite type)
+    if [ "${KEY_TYPE}" = "rsa" ]; then
+      # Should use RSA, so mismatch with ECC
+      generate_private_key "${CERT_NAME}" "${ca_path}/private" "prime256v1" "ecc"
+    else
+      # Should use ECC, so mismatch with RSA
+      generate_private_key "${CERT_NAME}" "${ca_path}/private" "2048" "rsa"
     fi
-    generate_private_key "${CERT_NAME}" "${ca_path}/private" "${mismatch_curve}"
   else
-    generate_private_key "${CERT_NAME}" "${ca_path}/private" "${ECC_CURVE}"
+    # Normal key generation using specified parameters
+    generate_private_key "${CERT_NAME}" "${ca_path}/private" "${KEY_SIZE}" "${KEY_TYPE}"
   fi
 
   # Create CSR
@@ -295,7 +294,8 @@ generate_leaf_cert() {
     "${CERT_DIR}/openssl.cnf" \
     "${ca_path}/private/${CERT_NAME}.key" \
     "${ca_path}/csr/${CERT_NAME}.csr" \
-    "${COMMON_NAME}"
+    "${COMMON_NAME}" \
+    "${CERT_TYPE}"
 
   # Check if CSR creation was successful
   if [ $? -ne 0 ]; then
@@ -373,35 +373,10 @@ generate_leaf_cert() {
     echo_t "Certificate deliberately removed (backup saved as ${CERT_NAME}.pem.bak)"
   fi
 
-  # Create a README for the certificate
-  #create_leaf_readme "${ca_path}"
+  # Certificate generation completed
 }
 
-# Create a README file for the certificate
-create_leaf_readme() {
-  local ca_path=$1
 
-  # Create README file
-  # Print certificate information
-  echo_t "${CERT_NAME} - ${CERT_TYPE} Certificate created"
-  echo_t "Certificate path: ${ca_path}/certs/${CERT_NAME}.pem"
-  echo_t "Private key path: ${ca_path}/private/${CERT_NAME}.key"
-  echo_t "PKCS#12 file: ${ca_path}/certs/${CERT_NAME}.p12"
-EOF
-
-  if [ ! -z "${FAILURE_MODE}" ]; then
-    echo_t "ATTENTION: This certificate has been deliberately ${FAILURE_MODE} for testing purposes."
-  fi
-
-  if [ ! -z "${CERT_PASSWORD}" ]; then
-    echo_t "PKCS#12 Password: ${CERT_PASSWORD}"
-  else
-    # No password case
-
-PKCS#12 Password: [Empty password]
-EOF
-  fi
-}
 
 # Main function
 main() {

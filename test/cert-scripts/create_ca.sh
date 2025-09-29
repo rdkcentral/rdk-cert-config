@@ -30,8 +30,8 @@
 #                           If same as --ca-name, creates a root CA
 #   --pathlen <NUM>         Path length constraint (default: 5 for root, auto-calculated for intermediate)
 #   --validity <DAYS>       Validity period in days (default: 3650)
-#   --ecc-curve <CURVE>     ECC curve to use (default: prime256v1)
-#                           Options: prime256v1 (P-256), secp384r1 (P-384), secp521r1 (P-521)
+#   --key-type <TYPE>       Key type: 'rsa' or 'ecc' (default: ecc)
+#   --key-size <SIZE>       RSA key size in bits (default: 2048) or ECC curve name (default: prime256v1)
 #   --expired               Generate an expired CA certificate
 #   --corrupted             Generate a corrupted CA certificate
 #   --revoked               Generate a revoked CA certificate
@@ -43,7 +43,8 @@ source "$(dirname "$0")/cert_utils.sh"
 # Default values
 CA_NAME=""
 PARENT_CA=""
-ECC_CURVE="prime256v1"
+KEY_TYPE="ecc"           # Default to ECC for CAs
+KEY_SIZE="prime256v1"   # Default ECC curve
 VALIDITY=1
 PATHLEN=""
 FAILURE_MODE=""
@@ -75,23 +76,17 @@ parse_args() {
         VALIDITY="$2"
         shift 2
         ;;
-      --ecc-curve)
-        case "$2" in
-          p256|prime256v1)
-            ECC_CURVE="prime256v1"
-            ;;
-          p384|secp384r1)
-            ECC_CURVE="secp384r1"
-            ;;
-          p521|secp521r1)
-            ECC_CURVE="secp521r1"
-            ;;
-          *)
-            echo_a "Error: Invalid ECC curve specified"
-            echo_t "Valid options: prime256v1, secp384r1, secp521r1"
-            exit 1
-            ;;
-        esac
+      --key-type)
+        if [[ "$2" == "rsa" || "$2" == "ecc" ]]; then
+          KEY_TYPE="$2"
+          shift 2
+        else
+          echo_a "Error: Invalid key type. Must be 'rsa' or 'ecc'."
+          exit 1
+        fi
+        ;;
+      --key-size)
+        KEY_SIZE="$2"
         shift 2
         ;;
       --expired)
@@ -148,8 +143,8 @@ Options:
                           If same as --ca-name, creates a root CA
   --pathlen <NUM>         Path length constraint (default: 5 for root, auto-calculated for intermediate)
   --validity <DAYS>       Validity period in days (default: 3650)
-  --ecc-curve <CURVE>     ECC curve to use (default: prime256v1)
-                          Options: prime256v1 (P-256), secp384r1 (P-384), secp521r1 (P-521)
+  --key-type <TYPE>       Key type: 'rsa' or 'ecc' (default: ecc)
+  --key-size <SIZE>       RSA key size in bits (default: 2048) or ECC curve name (default: prime256v1)
   --expired               Generate an expired CA certificate
   --corrupted             Generate a corrupted CA certificate
   --revoked               Generate a revoked CA certificate
@@ -261,7 +256,7 @@ generate_ca_cert() {
   local ca_path=$(get_ca_path "${CA_NAME}" "${PARENT_CA}")
 
   # Generate CA key
-  generate_private_key "${CA_NAME}" "${ca_path}/private" "${ECC_CURVE}"
+  generate_private_key "${CA_NAME}" "${ca_path}/private" "${KEY_SIZE}" "${KEY_TYPE}"
 
   # Check if key generation was successful
   if [ ! -f "${ca_path}/private/${CA_NAME}.key" ]; then
@@ -359,34 +354,10 @@ generate_ca_cert() {
     fi
   fi
 
-  # Create a README for the CA
-  #create_ca_readme
+  # CA certificate generation completed
 }
 
-# Create a README file for the CA
-create_ca_readme() {
-  local ca_path=$(get_ca_path "${CA_NAME}" "${PARENT_CA}")
-  local ca_type="Intermediate"
-  local parent_info="Signed by: ${PARENT_CA}"
 
-  if [ "${CA_NAME}" = "${PARENT_CA}" ]; then
-    ca_type="Root"
-    parent_info="Self-signed"
-  fi
-
-  # Print certificate information
-  echo_t "${CA_NAME} - ${ca_type} Certificate Authority created"
-  echo_t "Certificate path: ${ca_path}/certs/${CA_NAME}.pem"
-  echo_t "Private key path: ${ca_path}/private/${CA_NAME}.key"
-
-  if [ "${CA_NAME}" != "${PARENT_CA}" ]; then
-    echo_t "Chain file: ${ca_path}/${CA_NAME}_chain.pem"
-  fi
-
-  if [ ! -z "${FAILURE_MODE}" ]; then
-    echo_t "ATTENTION: This CA has been deliberately ${FAILURE_MODE} for testing purposes."
-  fi
-}
 
 # Main function
 main() {

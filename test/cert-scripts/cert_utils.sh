@@ -35,18 +35,24 @@ echo_a() {
     echo "$*"
 }
 
-# Generate private key using ECC
+# Generate private key (RSA or ECC)
 generate_private_key() {
   local name=$1
   local key_dir=$2
-  local curve=$3
+  local key_spec=$3  # For RSA: key size (e.g., 2048), For ECC: curve name
+  local key_type=${4:-"rsa"}  # Default to RSA
 
-  echo_t "Generating ECC key with curve ${curve} for ${name}"
   if [ ! -d "${key_dir}" ]; then
     mkdir -p "${key_dir}"
   fi
 
-  openssl ecparam -name "${curve}" -genkey -noout -out "${key_dir}/${name}.key"
+  if [ "${key_type}" = "rsa" ]; then
+    echo_t "Generating RSA key with ${key_spec} bits for ${name}"
+    openssl genrsa -out "${key_dir}/${name}.key" "${key_spec}"
+  else
+    echo_t "Generating ECC key with curve ${key_spec} for ${name}"
+    openssl ecparam -name "${key_spec}" -genkey -noout -out "${key_dir}/${name}.key"
+  fi
 
   # Set appropriate permissions
   chmod 600 "${key_dir}/${name}.key"
@@ -61,12 +67,25 @@ create_csr() {
   local key_path=$3
   local csr_path=$4
   local cn=$5
+  local cert_type=${6:-"client"}  # Default to client if not specified
 
   echo_t "Creating CSR for ${name}..."
 
   # Create a temporary config with the correct CN and SAN fields
   local temp_config="${config_path}.tmp"
-  sed "s/@COMMON_NAME@/${cn}/g" "${config_path}" > "${temp_config}"
+
+  # Use different subject configurations based on certificate type
+  if [ "${cert_type}" = "server" ]; then
+    # Server certificate - use simplified subject (no UID) and server SAN
+    sed -e "s/@COMMON_NAME@/${cn}/g" \
+        -e '/^UID = /d' \
+        -e 's/subjectAltName = @alt_names/subjectAltName = @server_alt_names/' \
+        "${config_path}" > "${temp_config}"
+  else
+    # Client certificate - use full subject with UID and client SAN
+    sed -e "s/@COMMON_NAME@/${cn}/g" \
+        "${config_path}" > "${temp_config}"
+  fi
 
   # Generate the CSR
   openssl req -new -key "${key_path}" -out "${csr_path}" -config "${temp_config}"
@@ -111,8 +130,8 @@ sign_certificate() {
     sed -i "s/@PATHLEN@/1/g" "${temp_config}"
   fi
 
-  # Apply common name to SAN field if this is a server certificate
-  if [ "${cert_type}" = "server" ] && [ ! -z "${cn}" ]; then
+  # Apply common name to SAN field for all certificate types
+  if [ ! -z "${cn}" ]; then
     sed -i "s/@COMMON_NAME@/${cn}/g" "${temp_config}"
   fi
 
@@ -331,9 +350,12 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment
 subjectAltName = @alt_names
 
 [ alt_names ]
-DNS.1 = localhost
+DNS.1 = RDK.client.test.domain
 DNS.2 = @COMMON_NAME@
-IP.1 = 127.0.0.1
+
+[ server_alt_names ]
+DNS.1 = RDK.server.test.domain
+DNS.2 = @COMMON_NAME@
 
 [ req_distinguished_name ]
 C = US
@@ -342,39 +364,39 @@ L = Philadelphia
 O = RDK Test Environment
 OU = RDK PKI Testing
 CN = @COMMON_NAME@
+UID = testrdkuser
 
 [ v3_ca ]
 subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid:always,issuer
 basicConstraints = critical, CA:true
 keyUsage = critical, digitalSignature, cRLSign, keyCertSign
-nsCertType = sslCA
 
 [ v3_intermediate_ca ]
 subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid:always,issuer
 basicConstraints = critical, CA:true, pathlen:@PATHLEN@
 keyUsage = critical, digitalSignature, cRLSign, keyCertSign
-nsCertType = sslCA
 
 [ server_cert ]
-basicConstraints = CA:FALSE
-nsCertType = server
-nsComment = "RDK Test Server Certificate"
-subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid,issuer:always
+subjectKeyIdentifier = hash
 keyUsage = critical, digitalSignature, keyEncipherment
-extendedKeyUsage = serverAuth
-subjectAltName = @alt_names
+basicConstraints = critical, CA:FALSE
+extendedKeyUsage = serverAuth, clientAuth
+certificatePolicies = 1.3.6.1.4.1.33333.1.1.1,2.23.140.1.2.2
+crlDistributionPoints = URI:http://127.0.0.1/crl/rdkca.crl
+authorityInfoAccess = OCSP;URI:http://127.0.0.1/ocsp,caIssuers;URI:http://127.0.0.1/certs/rdkca.crt
+subjectAltName = @server_alt_names
 
 [ client_cert ]
-basicConstraints = CA:FALSE
-nsCertType = client
-nsComment = "RDK Test Client Certificate"
-subjectKeyIdentifier = hash
+subjectAltName = @alt_names
+extendedKeyUsage = critical, clientAuth, serverAuth
+basicConstraints = critical, CA:FALSE
 authorityKeyIdentifier = keyid,issuer:always
+subjectKeyIdentifier = hash
 keyUsage = critical, digitalSignature, keyEncipherment
-extendedKeyUsage = clientAuth
+
 EOF
 
   echo_t "OpenSSL config file created at ${output_path}"
