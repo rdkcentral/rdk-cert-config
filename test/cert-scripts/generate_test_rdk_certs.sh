@@ -38,8 +38,6 @@
 #    --cert-key-mismatch     Generate a certificate with mismatched private key
 #    --missing-passcode      Generate a P12 file with no password
 #    --wrong-passcode        Generate a P12 file with a different password than expected
-#    --ecc-p384             Use ECC curve P-384 (default is P-256)
-#    --ecc-p521             Use ECC curve P-521 (default is P-256)
 #    --help                  Display this help message
 
 # Get the directory where this script is located
@@ -51,9 +49,10 @@ source "${SCRIPT_DIR}/cert_utils.sh"
 # Default values
 FAILURE_MODE=""
 CERT_PASSWORD="changeit"
-ECC_CURVE="prime256v1" # Default is P-256
 CERT_TYPE=""           # Must be specified as "server" or "client"
 COMMON_NAME=""         # Must be specified for the leaf certificate
+KEY_TYPE=""            # Will be auto-selected based on cert type if not specified
+KEY_SIZE=""            # Will be auto-selected based on key type if not specified
 ROOT_CA_OPTIONS=""     # Options for root CA creation
 ICA_OPTIONS=""         # Options for intermediate CA creation
 LEAF_CERT_OPTIONS=""   # Options for leaf certificate creation
@@ -89,9 +88,11 @@ Options:
   --cert-key-mismatch     Generate a certificate with mismatched private key
   --missing-passcode      Generate a P12 file with no password
   --wrong-passcode        Generate a P12 file with a different password than expected
-  --ecc-p384             Use ECC curve P-384 (default is P-256)
-  --ecc-p521             Use ECC curve P-521 (default is P-256)
+  --key-type <TYPE>       Key type: 'rsa' or 'ecc' (auto-selected based on cert type if not specified)
+  --key-size <SIZE>       RSA key size in bits (default: 2048) or ECC curve name (default: prime256v1)
   --help                  Display this help message
+
+Note: Server certificates default to RSA 2048-bit, client certificates default to ECC P-256
 EOF
 }
 
@@ -229,13 +230,20 @@ parse_args() {
       LEAF_CERT_OPTIONS="--wrong-password"
       echo "Generating P12 file with incorrect password..."
       ;;
-    --ecc-p384)
-      ECC_CURVE="secp384r1"
-      echo "Using ECC curve P-384..."
+    --key-type)
+      if [[ "$2" == "rsa" || "$2" == "ecc" ]]; then
+        KEY_TYPE="$2"
+        echo "Using key type: ${KEY_TYPE}"
+        shift 2
+      else
+        echo "Error: Invalid key type. Must be 'rsa' or 'ecc'."
+        exit 1
+      fi
       ;;
-    --ecc-p521)
-      ECC_CURVE="secp521r1"
-      echo "Using ECC curve P-521..."
+    --key-size)
+      KEY_SIZE="$2"
+      echo "Using key size/curve: ${KEY_SIZE}"
+      shift 2
       ;;
     --help)
       show_help
@@ -254,6 +262,27 @@ parse_args() {
     echo "Error: Certificate type must be specified with --type option"
     show_help
     exit 1
+  fi
+
+  # Auto-select key type and size based on certificate type if not specified
+  if [ -z "$KEY_TYPE" ]; then
+    if [ "$CERT_TYPE" = "server" ]; then
+      KEY_TYPE="rsa"
+      echo "Auto-selected RSA key type for server certificate"
+    else
+      KEY_TYPE="ecc"
+      echo "Auto-selected ECC key type for client certificate"
+    fi
+  fi
+
+  if [ -z "$KEY_SIZE" ]; then
+    if [ "$KEY_TYPE" = "rsa" ]; then
+      KEY_SIZE="2048"
+      echo "Auto-selected RSA key size: 2048 bits"
+    else
+      KEY_SIZE="prime256v1"
+      echo "Auto-selected ECC curve: prime256v1"
+    fi
   fi
 }
 
@@ -283,20 +312,21 @@ generate_certificates() {
   chmod +x "${SCRIPT_DIR}/create_ca.sh" "${SCRIPT_DIR}/create_leaf_cert.sh"
 
   # Generate Root CA
+  echo "DEBUG: KEY_TYPE='$KEY_TYPE', KEY_SIZE='$KEY_SIZE'"
   if [ "$FAILURE_MODE" = "untrusted-root" ]; then
     # Create an untrusted root with a different name
-    "${SCRIPT_DIR}/create_ca.sh" --ca-name "Test-RDK-root-untrusted" --parent-ca "Test-RDK-root-untrusted" --ecc-curve "$ECC_CURVE"
+    "${SCRIPT_DIR}/create_ca.sh" --ca-name "Test-RDK-root-untrusted" --parent-ca "Test-RDK-root-untrusted" --key-type "$KEY_TYPE" --key-size "$KEY_SIZE"
     # Also create the standard root for other certificates
-    "${SCRIPT_DIR}/create_ca.sh" --ca-name "Test-RDK-root" --parent-ca "Test-RDK-root" --ecc-curve "$ECC_CURVE"
+    "${SCRIPT_DIR}/create_ca.sh" --ca-name "Test-RDK-root" --parent-ca "Test-RDK-root" --key-type "$KEY_TYPE" --key-size "$KEY_SIZE"
   else
-    "${SCRIPT_DIR}/create_ca.sh" --ca-name "Test-RDK-root" --parent-ca "Test-RDK-root" --ecc-curve "$ECC_CURVE" $ROOT_CA_OPTIONS
+    "${SCRIPT_DIR}/create_ca.sh" --ca-name "Test-RDK-root" --parent-ca "Test-RDK-root" --key-type "$KEY_TYPE" --key-size "$KEY_SIZE" $ROOT_CA_OPTIONS
   fi
 
   # Generate Intermediate CA based on type
   ICA_NAME="Test-RDK-${CERT_TYPE}-ICA"
   echo "Generating ${CERT_TYPE} Intermediate CA..."
 
-  "${SCRIPT_DIR}/create_ca.sh" --ca-name "${ICA_NAME}" --parent-ca "Test-RDK-root" --ecc-curve "$ECC_CURVE" $ICA_OPTIONS
+  "${SCRIPT_DIR}/create_ca.sh" --ca-name "${ICA_NAME}" --parent-ca "Test-RDK-root" --key-type "$KEY_TYPE" --key-size "$KEY_SIZE" $ICA_OPTIONS
 
   if [ "$FAILURE_MODE" = "revoked-intermediate" ]; then
     echo "Note: Intermediate CA revocation implemented - CRL files can be found in the parent CA's crl directory"
@@ -310,7 +340,7 @@ generate_certificates() {
   echo "Generating ${CERT_TYPE} certificate with name '${CERT_NAME}'..."
 
   # Single call to create_leaf_cert.sh with the appropriate options
-  "${SCRIPT_DIR}/create_leaf_cert.sh" --cert-name "${CERT_NAME}" --ca-name "${ICA_NAME}" --type "${CERT_TYPE}" --ecc-curve "$ECC_CURVE" --cn "${COMMON_NAME}" $LEAF_CERT_OPTIONS
+  "${SCRIPT_DIR}/create_leaf_cert.sh" --cert-name "${CERT_NAME}" --ca-name "${ICA_NAME}" --type "${CERT_TYPE}" --key-type "${KEY_TYPE}" --key-size "${KEY_SIZE}" --cn "${COMMON_NAME}" $LEAF_CERT_OPTIONS
 }
 
 # Copy files to test scenarios directory if needed
@@ -354,7 +384,11 @@ print_certificate_info() {
   echo ""
   echo "Certificate Information:"
   echo "========================"
-  echo "Key Type: ECC with ${ECC_CURVE} curve"
+  if [ "$KEY_TYPE" = "rsa" ]; then
+    echo "Key Type: RSA ${KEY_SIZE}-bit"
+  else
+    echo "Key Type: ECC with ${KEY_SIZE} curve"
+  fi
   echo ""
   echo "Certificate Structure:"
   echo "- Root CA: Test-RDK-root"
@@ -382,9 +416,6 @@ main() {
   # Setup test scenarios if needed
   setup_test_scenarios
 
-  # Print certificate information
-  #print_certificate_info
-
   # Set appropriate permissions
   chmod -R 644 ${CERT_DIR}/certs/*.pem ${CERT_DIR}/certs/*.p12 2>/dev/null || true
   chmod -R 640 ${CERT_DIR}/certs/*.key 2>/dev/null || true
@@ -403,7 +434,7 @@ main() {
     echo_t "Test certificates copied to: ${CERT_DIR}/certs/test-scenarios/${FAILURE_MODE}"
   fi
 
-  echo_t "For more information, see the README.md file at: ${SCRIPT_DIR}/README.md"
+  # Certificate generation completed
 }
 
 # Run the script

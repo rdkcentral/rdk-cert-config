@@ -35,7 +35,7 @@ Notes:
    ```
 - Server cert with P‑384:
    ```bash
-   /etc/pki/scripts/generate_test_rdk_certs.sh --type server --cn mockxconf --ecc-p384
+   /etc/pki/scripts/generate_test_rdk_certs.sh --type server --cn mockxconf --key-type ecc --key-size secp384r1
    ```
 - Expired client leaf:
    ```bash
@@ -48,10 +48,10 @@ Required
 - `--type <server|client>`: leaf cert type
 - `--cn <COMMON_NAME>`: CN for the leaf certificate
 
-Curve options
-- `--ecc-p384` use P‑384 (secp384r1)
-- `--ecc-p521` use P‑521 (secp521r1)
-   - Default is P‑256 (prime256v1)
+Key options
+- `--key-type <rsa|ecc>` key algorithm (auto-selected: server→RSA, client→ECC)
+- `--key-size <size>` RSA bits (default: 2048) or ECC curve (default: prime256v1)
+   - ECC curves: prime256v1 (P-256), secp384r1 (P-384), secp521r1 (P-521)
 
 Failure modes
 - `--expired-cert` expired leaf certificate
@@ -71,7 +71,8 @@ Failure modes
 
 Notes
 - For more granular control, `create_ca.sh` and `create_leaf_cert.sh` expose:
-   - `--ecc-curve {prime256v1|secp384r1|secp521r1}`
+   - `--key-type {rsa|ecc}` (auto-selected: server→RSA, client→ECC)
+   - `--key-size <size>` (RSA: bits like 2048; ECC: curve like prime256v1)
    - `--validity <days>` (root default 3650; leaf default 365)
    - `--pathlen <N>` for intermediates; defaults derive from parent pathlen
 
