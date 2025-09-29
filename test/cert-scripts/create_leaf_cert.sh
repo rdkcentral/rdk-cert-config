@@ -1,9 +1,6 @@
 #!/bin/bash
 ##########################################################################
-# If not stated otherwise in this file or this component's LICENSE
-# file the following copyright and licenses apply:
-#
-# Copyright 2025 RDK Management
+# Copyright 2025 Comcast Cable Communications Management, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
 ##########################################################################
 # Leaf Certificate creation script for PKI infrastructure
 # Usage: create_leaf_cert.sh --cert-name <CERT_NAME> --ca-name <CA_NAME> [OPTIONS]

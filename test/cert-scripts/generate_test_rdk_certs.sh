@@ -1,9 +1,6 @@
 #!/bin/bash
 ##########################################################################
-# If not stated otherwise in this file or this component's LICENSE
-# file the following copyright and licenses apply:
-#
-# Copyright 2025 RDK Management
+# Copyright 2025 Comcast Cable Communications Management, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
 ##########################################################################
 # Certificate generation script for PKI infrastructure with support for various failure scenarios
 # Usage: generate_test_rdk_certs.sh --type <TYPE> [OPTION]
@@ -312,7 +311,6 @@ generate_certificates() {
   chmod +x "${SCRIPT_DIR}/create_ca.sh" "${SCRIPT_DIR}/create_leaf_cert.sh"
 
   # Generate Root CA
-  echo "DEBUG: KEY_TYPE='$KEY_TYPE', KEY_SIZE='$KEY_SIZE'"
   if [ "$FAILURE_MODE" = "untrusted-root" ]; then
     # Create an untrusted root with a different name
     "${SCRIPT_DIR}/create_ca.sh" --ca-name "Test-RDK-root-untrusted" --parent-ca "Test-RDK-root-untrusted" --key-type "$KEY_TYPE" --key-size "$KEY_SIZE"
