@@ -15,10 +15,19 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-if CSPC_L2_TEST
-SUBDIRS = l2-sampleapp
-endif
+certscriptsdir = $(datadir)/cert-scripts
+certscripts_SCRIPTS = \
+    cert_utils.sh \
+    create_ca.sh \
+    create_leaf_cert.sh \
+    generate_test_rdk_certs.sh
 
-if TEST_RDK_CERTS
-SUBDIRS = cert-scripts
-endif
+# Run installation steps during installation
+install-data-hook:
+	$(MKDIR_P) $(DESTDIR)$(datadir)/cert-scripts
+	chmod +x $(DESTDIR)$(datadir)/cert-scripts/*.sh
+	$(MKDIR_P) $(DESTDIR)/etc/pki
+	$(MKDIR_P) $(DESTDIR)/etc/ssl/certsel
+	cd $(DESTDIR) && ln -sf $(datadir)/cert-scripts /etc/pki/scripts
+	@echo "Certificate scripts installed successfully at $(DESTDIR)$(datadir)/cert-scripts"
+	@echo "Created CertSelector configuration directory at $(DESTDIR)/etc/ssl/certsel"
