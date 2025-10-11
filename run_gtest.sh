@@ -91,7 +91,7 @@ echo "*********************************************************"
 echo "**** CAPTURE RDK CERT SELECTOR/LOCATOR COVERAGE DATA ****"
 echo "*********************************************************"
 lcov --capture --directory . --output-file coverage.info
-lcov --remove coverage.info '/usr/*' --output-file coverage.filtered.info
+lcov --remove coverage.info '/usr/*' '*/gtest/*'  --output-file coverage.filtered.info
 genhtml coverage.filtered.info --output-directory out
 
 echo "*************************"
