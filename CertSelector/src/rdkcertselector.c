@@ -40,7 +40,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
+#include <openssl/sha.h>
 #include <stdint.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -287,6 +287,9 @@ char *rdkcertselector_getEngine( rdkcertselector_h thiscertsel ) {
 **/
 rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, char **certUri, char **certPass ) {
 
+  unsigned char hash[SHA256_DIGEST_LENGTH];
+  unsigned char hash1[SHA256_DIGEST_LENGTH];
+  unsigned char pc1[SHA256_DIGEST_LENGTH];
   if ( thiscertsel == NULL ) {
     ERROR_LOG( " %s:null argument\n", __FUNCTION__ );
     return certselectorBadPointer;
@@ -401,10 +404,26 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
 
           if ( pcsz < (sizeof(thiscertsel->certPass)-1) ) {
             memcpy( thiscertsel->certPass, pc, pcsz );
+            SHA256((unsigned char *)pc,strlen(pc),pc1);
+            SHA256((unsigned char *)thiscertsel->certPass,strlen(thiscertsel->certPass),hash);
             thiscertsel->certPass[pcsz] = '\0';  // data coming in does not assume string so need to null terminate
+            SHA256((unsigned char *)thiscertsel->certPass,strlen(thiscertsel->certPass),hash1);
+            
+            EXTRA_DEBUG_LOG( " %s:pc1 SHA:", __FUNCTION__ );
+            for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+                EXTRA_DEBUG_LOG( "%02x", pc1[i] );
+            }
+            EXTRA_DEBUG_LOG( "\n %s: hash SHA:", __FUNCTION__ );
+            for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+                EXTRA_DEBUG_LOG( "%02x", hash[i] );
+            }
+            EXTRA_DEBUG_LOG( "\n %s:hash1 SHA:", __FUNCTION__ );
+            for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+                EXTRA_DEBUG_LOG( "%02x", hash1[i] );
+            }
             rdkconfig_freeStr( &pc, pcsz );
             retval = certselectorOk; // found it
-            EXTRA_DEBUG_LOG( " %s:got the passcode\n", __FUNCTION__ );
+            EXTRA_DEBUG_LOG( "\n %s:got the passcode\n", __FUNCTION__ );
             break; // found it, finish up
           } else {
             ERROR_LOG( " %s:pc did not fit (%zu)\n", __FUNCTION__, pcsz );
