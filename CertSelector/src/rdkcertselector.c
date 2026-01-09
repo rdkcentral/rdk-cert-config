@@ -305,9 +305,6 @@ void print_sha256(const char *label, const unsigned char *buffer, size_t len)
 **/
 rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, char **certUri, char **certPass ) {
 
-  unsigned char hash[SHA256_DIGEST_LENGTH];
-  unsigned char hash1[SHA256_DIGEST_LENGTH];
-  unsigned char pc1[SHA256_DIGEST_LENGTH];
   if ( thiscertsel == NULL ) {
     ERROR_LOG( " %s:null argument\n", __FUNCTION__ );
     return certselectorBadPointer;
@@ -429,7 +426,7 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
               
             rdkconfig_freeStr( &pc, pcsz );
             retval = certselectorOk; // found it
-            EXTRA_DEBUG_LOG( "\n %s:got the passcode\n", __FUNCTION__ );
+            EXTRA_DEBUG_LOG( "%s:got the passcode\n", __FUNCTION__ );
             break; // found it, finish up
           } else {
             ERROR_LOG( " %s:pc did not fit (%zu)\n", __FUNCTION__, pcsz );
