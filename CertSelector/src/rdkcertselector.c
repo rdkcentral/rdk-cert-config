@@ -269,6 +269,24 @@ char *rdkcertselector_getEngine( rdkcertselector_h thiscertsel ) {
 
 #define FILESCHEME "file://"
 
+void print_sha256(const char *label, const unsigned char *buffer, size_t len)
+{
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+
+    if (!buffer || len == 0) {
+        EXTRA_DEBUG_LOG("[certdbg] %s: invalid buffer\n", label ? label : "SHA256");
+        return;
+    }
+
+    SHA256(buffer, len, hash);
+    EXTRA_DEBUG_LOG("[certdbg] %s SHA256: ",label ? label : "Buffer");
+
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+        EXTRA_DEBUG_LOG("%02x", hash[i]);
+    }
+    EXTRA_DEBUG_LOG("\n");
+}
+
 /**
  *  API for RDK Cert Selection operations.
  *  A cert file & it's passcode will be returned by the API on success.
@@ -404,23 +422,11 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
 
           if ( pcsz < (sizeof(thiscertsel->certPass)-1) ) {
             memcpy( thiscertsel->certPass, pc, pcsz );
-            SHA256((unsigned char *)pc,strlen(pc),pc1);
-            SHA256((unsigned char *)thiscertsel->certPass,strlen(thiscertsel->certPass),hash);
+            print_sha256("PC", (unsigned char *)pc,strlen(pc));
+            print_sha256("Hash", (unsigned char *)thiscertsel->certPass,strlen(thiscertsel->certPass));
             thiscertsel->certPass[pcsz] = '\0';  // data coming in does not assume string so need to null terminate
-            SHA256((unsigned char *)thiscertsel->certPass,strlen(thiscertsel->certPass),hash1);
-            
-            EXTRA_DEBUG_LOG( " %s:pc1 SHA:", __FUNCTION__ );
-            for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
-                EXTRA_DEBUG_LOG( "%02x", pc1[i] );
-            }
-            EXTRA_DEBUG_LOG( "\n %s: hash SHA:", __FUNCTION__ );
-            for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
-                EXTRA_DEBUG_LOG( "%02x", hash[i] );
-            }
-            EXTRA_DEBUG_LOG( "\n %s:hash1 SHA:", __FUNCTION__ );
-            for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
-                EXTRA_DEBUG_LOG( "%02x", hash1[i] );
-            }
+            print_sha256("Hash with Null", (unsigned char *)thiscertsel->certPass,strlen(thiscertsel->certPass));
+              
             rdkconfig_freeStr( &pc, pcsz );
             retval = certselectorOk; // found it
             EXTRA_DEBUG_LOG( "\n %s:got the passcode\n", __FUNCTION__ );
