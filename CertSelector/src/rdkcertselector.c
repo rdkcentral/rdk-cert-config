@@ -271,8 +271,8 @@ char *rdkcertselector_getEngine( rdkcertselector_h thiscertsel ) {
 
 void print_sha256(const char *label, const unsigned char *buffer, size_t len)
 {
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-
+    unsigned char hash[SHA256_DIGEST_LENGTH];    
+    EXTRA_DEBUG_LOG("[certdbg] len:%d\n", len);
     if (!buffer || len == 0) {
         EXTRA_DEBUG_LOG("[certdbg] %s: invalid buffer\n", label ? label : "SHA256");
         return;
