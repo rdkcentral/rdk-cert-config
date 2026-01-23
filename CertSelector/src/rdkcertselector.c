@@ -435,7 +435,7 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
           }
         } // pc not null
         else
-          DEBUG_LOG ("%s: received passcode is NULL\n",__func_  
+          DEBUG_LOG ("%s: received passcode is NULL\n",__func__);
       } // if rdkconfig_get is ok
 
       DEBUG_LOG( " %s:credential reference not found (%u)\n", __FUNCTION__, retval );
