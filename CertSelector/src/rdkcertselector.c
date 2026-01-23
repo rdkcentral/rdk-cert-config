@@ -435,7 +435,7 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
           }
         } // pc not null
         else
-          DEBUG_LOG ("%s: received passcode is NULL\n",__func_  
+          DEBUG_LOG ("%s: received passcode is NULL\n",__func__);
       } // if rdkconfig_get is ok
 
       DEBUG_LOG( " %s:credential reference not found (%u)\n", __FUNCTION__, retval );
@@ -465,12 +465,12 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
       ERROR_LOG( " %s:INTERNAL ERROR: current stat should not be %lu\n", __FUNCTION__,  thiscertsel->certStat[certIndx] );
     }
     if (certUri == NULL)
-           DEBUG_LOG ( "%s: cert URI is NULL\n");
+           DEBUG_LOG ( "%s: cert URI is NULL\n",__func__);
     else
            DEBUG_LOG( " %s:returning [%s:%s] index [%u]\n", __FUNCTION__, thiscertsel->certUri, "*****", certIndx );
 
     if (certPass == NULL)
-           DEBUG_LOG ( "%s: cert pass is NULL\n");
+           DEBUG_LOG ( "%s: cert pass is NULL\n",__func__);
   
     EXTRA_DEBUG_LOG( " %s:returning [%s:%s] index [%u]\n", __FUNCTION__, thiscertsel->certUri, "*****", certIndx );
   }
