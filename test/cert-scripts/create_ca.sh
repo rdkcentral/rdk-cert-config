@@ -28,7 +28,7 @@
 #   --parent-ca <n>      Name of the parent CA to sign with (required)
 #                           If same as --ca-name, creates a root CA
 #   --pathlen <NUM>         Path length constraint (default: 5 for root, auto-calculated for intermediate)
-#   --validity <DAYS>       Validity period in days (default: 3650)
+#   --validity <DAYS>       Validity period in days (default: 1)
 #   --key-type <TYPE>       Key type: 'rsa' or 'ecc' (default: ecc)
 #   --key-size <SIZE>       RSA key size in bits (default: 2048) or ECC curve name (default: prime256v1)
 #   --expired               Generate an expired CA certificate
@@ -43,7 +43,6 @@ source "$(dirname "$0")/cert_utils.sh"
 CA_NAME=""
 PARENT_CA=""
 KEY_TYPE="ecc"           # Default to ECC for CAs
-KEY_SIZE="prime256v1"   # Default ECC curve
 VALIDITY=1
 PATHLEN=""
 FAILURE_MODE=""
@@ -126,6 +125,17 @@ parse_args() {
     echo_a "Error: Parent CA name is required (--parent-ca)"
     exit 1
   fi
+
+  if [ -z "$KEY_SIZE" ]; then
+      if [ "$KEY_TYPE" == "ecc" ]; then
+          KEY_SIZE="prime256v1"   # Default ECC curve
+      elif [ "$KEY_TYPE" == "rsa" ]; then
+          KEY_SIZE="2048"         # Default RSA key size
+      else
+          echo_a "Error: Invalid key type"
+          exit 1
+      fi
+  fi
 }
 
 show_help() {
@@ -141,7 +151,7 @@ Options:
   --parent-ca <n>      Name of the parent CA to sign with (required)
                           If same as --ca-name, creates a root CA
   --pathlen <NUM>         Path length constraint (default: 5 for root, auto-calculated for intermediate)
-  --validity <DAYS>       Validity period in days (default: 3650)
+  --validity <DAYS>       Validity period in days (default: 1)
   --key-type <TYPE>       Key type: 'rsa' or 'ecc' (default: ecc)
   --key-size <SIZE>       RSA key size in bits (default: 2048) or ECC curve name (default: prime256v1)
   --expired               Generate an expired CA certificate
