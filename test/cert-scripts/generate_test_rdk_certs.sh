@@ -35,9 +35,10 @@
 #    --untrusted-root        Generate a root CA that won't be in the trust store
 #    --missing-cert          Simulate a missing certificate file
 #    --cert-key-mismatch     Generate a certificate with mismatched private key
-#    --missing-passcode      Generate a P12 file with no password
-#    --wrong-passcode        Generate a P12 file with a different password than expected
-#    --help                  Display this help message
+  --missing-passcode      Generate a P12 file with no password
+  --wrong-passcode        Generate a P12 file with a different password than expected
+  --enable-pkcs11-ref     Create reference P12 with sentinel key for PKCS#11 testing
+  --help                  Display this help message
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(dirname "$0")"
@@ -55,6 +56,7 @@ KEY_SIZE=""            # Will be auto-selected based on key type if not specifie
 ROOT_CA_OPTIONS=""     # Options for root CA creation
 ICA_OPTIONS=""         # Options for intermediate CA creation
 LEAF_CERT_OPTIONS=""   # Options for leaf certificate creation
+ENABLE_PKCS11_REF=false  # Create reference P12 for PKCS#11 testing
 
 # Function to show help message
 show_help() {
@@ -87,6 +89,7 @@ Options:
   --cert-key-mismatch     Generate a certificate with mismatched private key
   --missing-passcode      Generate a P12 file with no password
   --wrong-passcode        Generate a P12 file with a different password than expected
+  --enable-pkcs11-ref     Create reference P12 with sentinel key for PKCS#11 testing
   --key-type <TYPE>       Key type: 'rsa' or 'ecc' (auto-selected based on cert type if not specified)
   --key-size <SIZE>       RSA key size in bits (default: 2048) or ECC curve name (default: prime256v1)
   --help                  Display this help message
@@ -197,6 +200,11 @@ parse_args() {
       FAILURE_MODE="revoked-intermediate"
       ICA_OPTIONS="--revoked"
       echo "Generating revoked intermediate CA..."
+      ;;
+    --enable-pkcs11-ref)
+      ENABLE_PKCS11_REF=true
+      echo "Will create reference P12 with sentinel key for PKCS#11..."
+      shift
       ;;
     --revoked-root)
       FAILURE_MODE="revoked-root"
@@ -430,6 +438,25 @@ main() {
     echo_t ""
     echo_t "Test scenario: ${FAILURE_MODE}"
     echo_t "Test certificates copied to: ${CERT_DIR}/certs/test-scenarios/${FAILURE_MODE}"
+  fi
+
+  # Create reference P12 if requested
+  if [ "$ENABLE_PKCS11_REF" = "true" ]; then
+    echo_t ""
+    echo_t "Creating reference P12 with sentinel key for PKCS#11..."
+    REFERENCE_P12="${CERT_DIR}/certs/reference.p12"
+    
+    "${SCRIPT_DIR}/create-reference-p12.sh" \
+      "${CERT_DIR}/${ICA_NAME}/certs/${CERT_NAME}.pem" \
+      "$REFERENCE_P12" \
+      "$CERT_PASSWORD"
+    
+    if [ $? -eq 0 ]; then
+      echo_t "✓ Reference P12 created: $REFERENCE_P12"
+      echo_t "  Use this P12 with PKCS#11 slot 0x2c for migration testing"
+    else
+      echo_t "WARNING: Reference P12 creation failed"
+    fi
   fi
 
   # Certificate generation completed
