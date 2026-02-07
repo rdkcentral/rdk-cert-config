@@ -1,245 +1,118 @@
-/*
- * make_ref_p12.c - Create reference P12 file with sentinel key
- * 
- * This tool creates a PKCS#12 file with:
- * - A valid certificate (from input PEM file)
- * - A sentinel EC private key (minimal valid value = 1, not zero)
- * 
- * The sentinel key triggers the PKCS#11 migration patch behavior
- * in OpenSSL, causing it to fetch the real key from PKCS#11 slot 0x2c.
- * 
- * CRITICAL: Uses low-level PKCS12 ASN.1 API to bypass X509_check_private_key validation
- * 
- * Build: gcc -o make_ref_p12 make_ref_p12.c -lssl -lcrypto
- * Usage: ./make_ref_p12 <cert.pem> <output.p12> <password>
- */
-
 #include <stdio.h>
-#include <string.h>
-#include <openssl/pem.h>
+#include <stdlib.h>
 #include <openssl/pkcs12.h>
-#include <openssl/evp.h>
-#include <openssl/ec.h>
-#include <openssl/x509.h>
+#include <openssl/pem.h>
 #include <openssl/err.h>
-#include <openssl/provider.h>
 
-/*
- * Create EC sentinel key with private key = 1
- * (minimal valid value to satisfy OpenSSL internal checks)
- */
-static EVP_PKEY *create_sentinel_ec_key(void)
-{
+int main(int argc, char *argv[]) {
+    FILE *f;
+    X509 *cert = NULL;
     EVP_PKEY *pkey = NULL;
-    EC_KEY *ec = NULL;
-    BIGNUM *priv = NULL;
-    const EC_GROUP *group = NULL;
-    EC_POINT *pub = NULL;
-
-    /* Create EC key for P-256 curve */
-    ec = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
-    if (!ec) {
-        fprintf(stderr, "Failed to create EC key\n");
-        return NULL;
-    }
-
-    group = EC_KEY_get0_group(ec);
-
-    /* Set private key = 1 (minimal valid, not zero to satisfy OpenSSL) */
-    priv = BN_new();
-    if (!priv) goto err;
+    PKCS12 *p12 = NULL;
+    PKCS7 *p7 = NULL;
+    STACK_OF(PKCS7) *safes = NULL;
+    STACK_OF(PKCS12_SAFEBAG) *bags = NULL;
     
-    BN_one(priv);
+    const char *cert_file = "cert.pem";
+    const char *key_file = "sentinel_key.pem";
+    const char *p12_file = "reference.p12";
+    const char *password = "changeit";
 
-    if (!EC_KEY_set_private_key(ec, priv)) {
-        fprintf(stderr, "Failed to set private key\n");
-        goto err;
-    }
-
-    /* Compute public key from private key */
-    pub = EC_POINT_new(group);
-    if (!pub) goto err;
-    
-    if (!EC_POINT_mul(group, pub, priv, NULL, NULL, NULL)) {
-        fprintf(stderr, "Failed to compute public key\n");
-        goto err;
-    }
-    
-    if (!EC_KEY_set_public_key(ec, pub)) {
-        fprintf(stderr, "Failed to set public key\n");
-        goto err;
-    }
-
-    /* Wrap in EVP_PKEY */
-    pkey = EVP_PKEY_new();
-    if (!pkey) goto err;
-    
-    if (!EVP_PKEY_assign_EC_KEY(pkey, ec)) {
-        EVP_PKEY_free(pkey);
-        pkey = NULL;
-        goto err;
-    }
-
-    BN_free(priv);
-    EC_POINT_free(pub);
-    return pkey;
-
-err:
-    if (priv) BN_free(priv);
-    if (pub) EC_POINT_free(pub);
-    if (ec) EC_KEY_free(ec);
-    return NULL;
-}
-
-int main(int argc, char **argv)
-{
-    if (argc != 4) {
-        fprintf(stderr, "Usage: %s <cert.pem> <output.p12> <password>\n", argv[0]);
-        return 1;
-    }
-
-    const char *certfile = argv[1];
-    const char *outfile  = argv[2];
-    const char *pass     = argv[3];
-
-    /* Load legacy provider for PKCS12 PBE algorithms in OpenSSL 3 */
-    OSSL_PROVIDER_load(NULL, "default");
-    OSSL_PROVIDER_load(NULL, "legacy");
+    if (argc > 1) cert_file = argv[1];
+    if (argc > 2) key_file = argv[2];
+    if (argc > 3) p12_file = argv[3];
+    if (argc > 4) password = argv[4];
 
     OpenSSL_add_all_algorithms();
     ERR_load_crypto_strings();
 
     /* Load certificate */
-    printf("Loading certificate from: %s\n", certfile);
-    FILE *f = fopen(certfile, "r");
+    f = fopen(cert_file, "r");
     if (!f) {
-        fprintf(stderr, "Failed to open certificate file: %s\n", certfile);
+        fprintf(stderr, "ERROR: Cannot open %s\n", cert_file);
         return 1;
     }
-    
-    X509 *cert = PEM_read_X509(f, NULL, NULL, NULL);
+    cert = PEM_read_X509(f, NULL, NULL, NULL);
     fclose(f);
 
-    if (!cert) {
-        fprintf(stderr, "Failed to read certificate\n");
-        ERR_print_errors_fp(stderr);
-        return 1;
-    }
-
-    /* Create sentinel EC key */
-    printf("Creating EC sentinel key (P-256 with private=1)...\n");
-    EVP_PKEY *pkey = create_sentinel_ec_key();
-    if (!pkey) {
-        fprintf(stderr, "Failed to create sentinel key\n");
+    /* Load sentinel key */
+    f = fopen(key_file, "r");
+    if (!f) {
+        fprintf(stderr, "ERROR: Cannot open %s\n", key_file);
         X509_free(cert);
         return 1;
     }
+    pkey = PEM_read_PrivateKey(f, NULL, NULL, NULL);
+    fclose(f);
 
-    /* Build PKCS#12 using low-level API (bypasses validation) */
-    printf("Building PKCS#12 structure (ASN.1 low-level API)...\n");
-    STACK_OF(PKCS12_SAFEBAG) *bags = NULL;
+    if (!cert || !pkey) {
+        fprintf(stderr, "ERROR: Failed to load cert or key\n");
+        ERR_print_errors_fp(stderr);
+        if (cert) X509_free(cert);
+        if (pkey) EVP_PKEY_free(pkey);
+        return 1;
+    }
+
+    /* Create bag stack */
+    bags = sk_PKCS12_SAFEBAG_new_null();
 
     /* Add cert bag */
     if (!PKCS12_add_cert(&bags, cert)) {
-        fprintf(stderr, "PKCS12_add_cert failed\n");
         ERR_print_errors_fp(stderr);
-        EVP_PKEY_free(pkey);
-        X509_free(cert);
         return 1;
     }
 
-    /* Add key bag (NO X509_check_private_key validation happens here) */
-    if (!PKCS12_add_key(&bags, pkey, 0, 0, NULL)) {
-        fprintf(stderr, "PKCS12_add_key failed\n");
+    /* Add key bag — NO key/cert validation */
+    /* PKCS12_add_key signature: pbags, pkey, key_usage, iter, key_nid, pass */
+    /* Use -1 for key_nid to disable PBE encryption (avoid legacy provider requirement) */
+    if (!PKCS12_add_key(&bags, pkey, -1, 0, -1, NULL)) {
         ERR_print_errors_fp(stderr);
-        sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
-        EVP_PKEY_free(pkey);
-        X509_free(cert);
         return 1;
     }
 
-    /* Pack into PKCS7 authsafe */
-    PKCS7 *p7 = PKCS12_pack_p7data(bags);
+    /* Pack bags into PKCS7 */
+    p7 = PKCS12_pack_p7data(bags);
     if (!p7) {
-        fprintf(stderr, "PKCS12_pack_p7data failed\n");
         ERR_print_errors_fp(stderr);
-        sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
-        EVP_PKEY_free(pkey);
-        X509_free(cert);
         return 1;
     }
-    
-    STACK_OF(PKCS7) *safes = sk_PKCS7_new_null();
-    if (!safes) {
-        fprintf(stderr, "Failed to create authsafes\n");
-        PKCS7_free(p7);
-        sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
-        EVP_PKEY_free(pkey);
-        X509_free(cert);
-        return 1;
-    }
+
+    /* Create safes stack */
+    safes = sk_PKCS7_new_null();
     sk_PKCS7_push(safes, p7);
 
-    /* Create PKCS12 structure */
-    PKCS12 *p12 = PKCS12_init(NID_pkcs7_data);
-    if (!p12) {
-        fprintf(stderr, "PKCS12_init failed\n");
-        ERR_print_errors_fp(stderr);
-        sk_PKCS7_pop_free(safes, PKCS7_free);
-        sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
-        EVP_PKEY_free(pkey);
-        X509_free(cert);
-        return 1;
-    }
-    
+    /* Build PKCS12 */
+    p12 = PKCS12_init(NID_pkcs7_data);
     if (!PKCS12_pack_authsafes(p12, safes)) {
-        fprintf(stderr, "PKCS12_pack_authsafes failed\n");
         ERR_print_errors_fp(stderr);
-        PKCS12_free(p12);
-        sk_PKCS7_pop_free(safes, PKCS7_free);
-        sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
-        EVP_PKEY_free(pkey);
-        X509_free(cert);
         return 1;
     }
 
-    /* Write P12 to file */
-    printf("Writing P12 to: %s\n", outfile);
-    FILE *out = fopen(outfile, "wb");
-    if (!out) {
-        fprintf(stderr, "Failed to open output file: %s\n", outfile);
-        PKCS12_free(p12);
-        sk_PKCS7_pop_free(safes, PKCS7_free);
-        sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
-        EVP_PKEY_free(pkey);
-        X509_free(cert);
-        return 1;
-    }
-    
-    if (!i2d_PKCS12_fp(out, p12)) {
-        fprintf(stderr, "Failed to write P12 file\n");
+    /* Set MAC */
+    if (!PKCS12_set_mac(p12, password, -1, NULL, 0, 2048, NULL)) {
         ERR_print_errors_fp(stderr);
-        fclose(out);
-        PKCS12_free(p12);
-        sk_PKCS7_pop_free(safes, PKCS7_free);
-        sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
-        EVP_PKEY_free(pkey);
-        X509_free(cert);
         return 1;
     }
-    fclose(out);
 
-    printf("✓ Reference P12 created successfully\n");
-    printf("  Certificate: %s\n", certfile);
-    printf("  Sentinel key: EC P-256 with private=1 (triggers PKCS#11 patch)\n");
-    printf("  Output: %s\n", outfile);
+    /* Write P12 */
+    f = fopen(p12_file, "wb");
+    if (!f) {
+        fprintf(stderr, "ERROR: Cannot open %s\n", p12_file);
+        return 1;
+    }
+    i2d_PKCS12_fp(f, p12);
+    fclose(f);
 
-    /* Cleanup */
+    printf("✓ Successfully created reference P12: %s\n", p12_file);
+    printf("  Certificate: %s\n", cert_file);
+    printf("  Sentinel key: %s (no validation)\n", key_file);
+    printf("  Password: %s\n", password);
+
     PKCS12_free(p12);
     sk_PKCS7_pop_free(safes, PKCS7_free);
     sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
-    EVP_PKEY_free(pkey);
     X509_free(cert);
+    EVP_PKEY_free(pkey);
 
     return 0;
 }
