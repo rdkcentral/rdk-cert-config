@@ -19,6 +19,8 @@ OUTPUT_P12="$2"
 PASSWORD="${3:-changeit}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TOOL_BIN="${SCRIPT_DIR}/tools/make_ref_p12"
+TEMP_DIR=$(mktemp -d)
+trap "rm -rf $TEMP_DIR" EXIT
 
 echo "[create-reference-p12] Creating reference P12 with sentinel key..."
 
@@ -43,8 +45,43 @@ if [ ! -f "$TOOL_BIN" ]; then
     fi
 fi
 
-# Create reference P12 with sentinel key (all zeros)
-"$TOOL_BIN" "$CERT_FILE" "$OUTPUT_P12" "$PASSWORD"
+# Generate sentinel EC private key (all zeros pattern)
+echo "[create-reference-p12] Generating sentinel key..."
+SENTINEL_KEY_PEM="$TEMP_DIR/sentinel_key.pem"
+
+# Generate a valid EC key template
+openssl ecparam -name prime256v1 -genkey -noout -out "$TEMP_DIR/template_key.pem"
+openssl pkey -in "$TEMP_DIR/template_key.pem" -outform DER -out "$TEMP_DIR/template.der"
+
+# Find offset of 32-byte private key value in PKCS#8 structure
+HEADER_OFFSET=$(openssl asn1parse -in "$TEMP_DIR/template.der" -inform DER | \
+    grep "d=1" | grep "OCTET STRING" | grep "l=  32" | head -1 | \
+    awk '{print $1}' | cut -d: -f1)
+
+if [ -z "$HEADER_OFFSET" ]; then
+    echo "[create-reference-p12] ERROR: Could not parse EC key structure"
+    exit 1
+fi
+
+# Calculate data offset (skip ASN.1 tag and length bytes: +2)
+OFFSET=$((HEADER_OFFSET + 2))
+
+# Create sentinel pattern: 32 bytes of 0x00
+dd if=/dev/zero of="$TEMP_DIR/sentinel32.bin" bs=1 count=32 2>/dev/null
+
+# Replace private key value with sentinel pattern
+dd if="$TEMP_DIR/sentinel32.bin" of="$TEMP_DIR/template.der" bs=1 seek=$OFFSET count=32 conv=notrunc 2>/dev/null
+
+# Convert back to PEM
+openssl pkey -inform DER -in "$TEMP_DIR/template.der" -out "$SENTINEL_KEY_PEM"
+
+if [ ! -s "$SENTINEL_KEY_PEM" ]; then
+    echo "[create-reference-p12] ERROR: Failed to create sentinel key"
+    exit 1
+fi
+
+# Create reference P12 with sentinel key
+"$TOOL_BIN" "$CERT_FILE" "$SENTINEL_KEY_PEM" "$OUTPUT_P12" "$PASSWORD"
 
 if [ $? -eq 0 ] && [ -f "$OUTPUT_P12" ]; then
     echo "[create-reference-p12] ✓ Reference P12 created: $OUTPUT_P12"
