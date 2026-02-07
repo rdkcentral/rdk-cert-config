@@ -22,6 +22,7 @@
 #include <openssl/ec.h>
 #include <openssl/x509.h>
 #include <openssl/err.h>
+#include <openssl/provider.h>
 
 /*
  * Create EC sentinel key with private key = 1
@@ -101,6 +102,10 @@ int main(int argc, char **argv)
     const char *outfile  = argv[2];
     const char *pass     = argv[3];
 
+    /* Load legacy provider for PKCS12 PBE algorithms in OpenSSL 3 */
+    OSSL_PROVIDER_load(NULL, "default");
+    OSSL_PROVIDER_load(NULL, "legacy");
+
     OpenSSL_add_all_algorithms();
     ERR_load_crypto_strings();
 
@@ -144,7 +149,7 @@ int main(int argc, char **argv)
     }
 
     /* Add key bag (NO X509_check_private_key validation happens here) */
-    if (!PKCS12_add_key(&bags, pkey, 0, 0, 0, pass)) {
+    if (!PKCS12_add_key(&bags, pkey, 0, 0, NULL)) {
         fprintf(stderr, "PKCS12_add_key failed\n");
         ERR_print_errors_fp(stderr);
         sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
