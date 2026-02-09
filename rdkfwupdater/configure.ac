@@ -1,0 +1,193 @@
+# Copyright 2023 Comcast Cable Communications Management, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+AC_PREREQ([2.65])
+AC_INIT([rdkfwupgrader], [1.0], [BUG-REPORT-ADDRESS])
+AM_INIT_AUTOMAKE([subdir-objects])
+#AM_INIT_AUTOMAKE([foreign])
+LT_INIT
+
+AC_PREFIX_DEFAULT(`pwd`)
+AC_ENABLE_SHARED
+AC_DISABLE_STATIC
+AC_PROG_AWK
+AC_PROG_LN_S
+AC_PROG_MAKE_SET
+
+AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_MACRO_DIR([m4])
+
+# Checks for programs.
+AC_PROG_CXX
+AC_PROG_CC
+AC_PROG_INSTALL
+AM_PROG_CC_C_O
+AM_PROG_LIBTOOL(libtool)
+
+TRACE_CFLAGS=" "
+TRACE_LIBS==" "
+IS_LIBRDKCERTSEL_ENABLED=" "
+
+# Checks for header files.
+AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
+AC_FUNC_MKTIME
+AC_PROG_RANLIB
+AC_TYPE_SIZE_T
+AC_TYPE_UINT32_T
+
+AC_ARG_ENABLE([cpc-code],
+    [AS_HELP_STRING([--enable-cpc-code], [Enable CPC code support])],
+    [USE_CPC_CODE="$enableval"],
+    [USE_CPC_CODE=no])
+
+AM_CONDITIONAL([USE_CPC_CODE], [test "$USE_CPC_CODE" = "yes"])
+
+if test "$USE_CPC_CODE" = "yes"; then
+    AC_DEFINE([USE_CPC_CODE], [1], [Define to enable CPC CODE support])
+fi
+
+AC_ARG_ENABLE([rdkcertselector],
+        AS_HELP_STRING([--enable-rdkcertselector],[enables rdkcertselector replacement (default is no)]),
+        [
+          case "${enableval}" in
+           yes) IS_LIBRDKCERTSEL_ENABLED=true
+                LIBRDKCERTSEL_FLAG=" -DLIBRDKCERTSELECTOR ";;
+           no)  IS_LIBRDKCERTSEL_ENABLED=false ;;
+          *) AC_MSG_ERROR([bad value ${enableval} for --enable-rdkcertselector]) ;;
+           esac
+           ],
+        [echo "rdkcertselector is disabled"])
+AM_CONDITIONAL([IS_LIBRDKCERTSEL_ENABLED], [test x$IS_LIBRDKCERTSEL_ENABLED = xtrue])
+AC_SUBST(LIBRDKCERTSEL_FLAG)
+
+AC_ARG_ENABLE([mountutils],
+        AS_HELP_STRING([--enable-mountutils],[enables mountutils replacement (default is no)]),
+        [
+          case "${enableval}" in
+           yes) IS_LIBRDKCONFIG_ENABLED=true
+                LIBRDKCONFIG_FLAG=" -DLIBRDKCONFIG_BUILD ";;
+           no)  IS_LIBRDKCONFIG_ENABLED=false ;;
+          *) AC_MSG_ERROR([bad value ${enableval} for --enable-mountutils]) ;;
+           esac
+           ],
+        [echo "mountutils is disabled"])
+AM_CONDITIONAL([IS_LIBRDKCONFIG_ENABLED], [test x$IS_LIBRDKCONFIG_ENABLED = xtrue])
+AC_SUBST(LIBRDKCONFIG_FLAG)
+
+AC_ARG_ENABLE([rfcapi],
+        AS_HELP_STRING([--enable-rfcapi],[enables rfcapi]),
+        [
+          case "${enableval}" in
+           yes) IS_LIBRFCAPI_ENABLED=true
+                LIBRFCAPI_FLAG=" -DRFC_API_ENABLED ";;
+           no)  IS_LIBRFCAPI_ENABLED=false ;;
+          *) AC_MSG_ERROR([bad value ${enableval} for --enable-rfcapi]) ;;
+           esac
+           ],
+        [echo "rfcapi is disabled"])
+AM_CONDITIONAL([IS_LIBRFCAPI_ENABLED], [test x$IS_LIBRFCAPI_ENABLED = xtrue])
+AC_SUBST(LIBRFCAPI_FLAG)
+
+AC_ARG_ENABLE([t2api],
+        AS_HELP_STRING([--enable-t2api],[enables telemetry]),
+        [
+          case "${enableval}" in
+           yes) IS_TELEMETRY2_ENABLED=true
+                T2_EVENT_FLAG=" -DT2_EVENT_ENABLED ";;
+           no)  IS_TELEMETRY2_ENABLED=false ;;
+          *) AC_MSG_ERROR([bad value ${enableval} for --enable-t2enable]) ;;
+           esac
+           ],
+        [echo "telemetry is disabled"])
+AM_CONDITIONAL([IS_TELEMETRY2_ENABLED], [test x$IS_TELEMETRY2_ENABLED = xtrue])
+AC_SUBST(T2_EVENT_FLAG)
+
+AC_ARG_ENABLE([test-fwupgrader],
+  AS_HELP_STRING([--enable-test-fwupgrader], [Enable Test FW Upgrader (default: disabled)]),
+  [enable_test_fwupgrader=$enableval],
+  [enable_test_fwupgrader=no])
+
+AM_CONDITIONAL([INSTALL_TEST_FWUPGRADER], [test "x$enable_test_fwupgrader" = "xyes"])
+
+AC_ARG_ENABLE([iarmevent],
+        AS_HELP_STRING([--enable-iarmevent],[enables IARM event]),
+        [
+          case "${enableval}" in
+           yes) IS_IARMEVENT_ENABLED=true
+                IARM_EVENT_FLAG=" -DIARM_ENABLED ";;
+           no)  IS_IARMEVENT_ENABLED=false ;;
+          *) AC_MSG_ERROR([bad value ${enableval} for --enable-iarmevent]) ;;
+           esac
+           ],
+        [echo "iarm is disabled"])
+AM_CONDITIONAL([IS_IARMEVENT_ENABLED], [test x$IS_IARMEVENT_ENABLED = xtrue])
+AC_SUBST(IARM_EVENT_FLAG)
+
+AC_ARG_ENABLE([dbus-daemon],
+        AS_HELP_STRING([--enable-dbus-daemon],[Enable D-Bus daemon rdkFwupdateMgr (default is no)]),
+        [
+          case "${enableval}" in
+           yes) ENABLE_DBUS_DAEMON=true
+                DBUS_DAEMON_FLAG=" -DENABLE_DBUS_DAEMON ";;
+           no)  ENABLE_DBUS_DAEMON=false ;;
+          *) AC_MSG_ERROR([bad value ${enableval} for --enable-dbus-daemon]) ;;
+           esac
+           ],
+        [echo "D-Bus daemon is disabled"])
+AM_CONDITIONAL([ENABLE_DBUS_DAEMON], [test x$ENABLE_DBUS_DAEMON = xtrue])
+AC_SUBST(DBUS_DAEMON_FLAG)
+
+AC_ARG_ENABLE([extended-logger],
+        AS_HELP_STRING([--enable-extended-logger],[Enable extended RDK logger initialization (default is no)]),
+        [
+          case "${enableval}" in
+           yes) ENABLE_EXTENDED_LOGGER=true
+                EXTENDED_LOGGER_FLAG=" -DUSE_EXTENDED_LOGGER_INIT ";;
+           no)  ENABLE_EXTENDED_LOGGER=false ;;
+          *) AC_MSG_ERROR([bad value ${enableval} for --enable-extended-logger]) ;;
+           esac
+           ],
+        [echo "Extended logger is disabled"])
+AM_CONDITIONAL([ENABLE_EXTENDED_LOGGER], [test x$ENABLE_EXTENDED_LOGGER = xtrue])
+AC_SUBST(EXTENDED_LOGGER_FLAG)
+
+PKG_CHECK_MODULES([cjson], [libcjson])
+PKG_CHECK_MODULES([curl], [libcurl])
+
+# Check for GLIB (always required since daemon is always built)
+PKG_CHECK_MODULES([GLIB], [glib-2.0 gio-2.0])
+AC_SUBST([GLIB_CFLAGS])
+AC_SUBST([GLIB_LIBS])
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_HEADER_STDBOOL
+AC_C_INLINE
+
+# Checks for library functions.
+AC_FUNC_MALLOC
+
+AC_SUBST(TRACE_CFLAGS)
+AC_SUBST(TRACE_LIBS)
+AC_CONFIG_FILES(
+    Makefile
+    )
+# D-Bus support (conditional)
+if test x$ENABLE_DBUS_DAEMON = xtrue; then
+    AC_DEFINE([ENABLE_DBUS], [1], [D-Bus support enabled])
+fi
+AM_CONDITIONAL([ENABLE_DBUS], [test x$ENABLE_DBUS_DAEMON = xtrue])
+AC_OUTPUT

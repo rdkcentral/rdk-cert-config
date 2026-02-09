@@ -55,11 +55,16 @@ int main(int argc, char *argv[]) {
 
     /* Create bag stack */
     bags = sk_PKCS12_SAFEBAG_new_null();
+    if (!bags) {
+        fprintf(stderr, "ERROR: Failed to create bag stack\n");
+        ERR_print_errors_fp(stderr);
+        goto cleanup;
+    }
 
     /* Add cert bag */
     if (!PKCS12_add_cert(&bags, cert)) {
         ERR_print_errors_fp(stderr);
-        return 1;
+        goto cleanup;
     }
 
     /* Add key bag — NO key/cert validation */
@@ -67,38 +72,51 @@ int main(int argc, char *argv[]) {
     /* Use -1 for key_nid to disable PBE encryption (avoid legacy provider requirement) */
     if (!PKCS12_add_key(&bags, pkey, -1, 0, -1, NULL)) {
         ERR_print_errors_fp(stderr);
-        return 1;
+        goto cleanup;
     }
 
     /* Pack bags into PKCS7 */
     p7 = PKCS12_pack_p7data(bags);
     if (!p7) {
         ERR_print_errors_fp(stderr);
-        return 1;
+        goto cleanup;
     }
 
     /* Create safes stack */
     safes = sk_PKCS7_new_null();
-    sk_PKCS7_push(safes, p7);
+    if (!safes) {
+        fprintf(stderr, "ERROR: Failed to create safes stack\n");
+        ERR_print_errors_fp(stderr);
+        goto cleanup;
+    }
+    if (!sk_PKCS7_push(safes, p7)) {
+        fprintf(stderr, "ERROR: Failed to push P7 to safes stack\n");
+        goto cleanup;
+    }
 
     /* Build PKCS12 */
     p12 = PKCS12_init(NID_pkcs7_data);
+    if (!p12) {
+        fprintf(stderr, "ERROR: Failed to initialize PKCS12\n");
+        ERR_print_errors_fp(stderr);
+        goto cleanup;
+    }
     if (!PKCS12_pack_authsafes(p12, safes)) {
         ERR_print_errors_fp(stderr);
-        return 1;
+        goto cleanup;
     }
 
     /* Set MAC */
     if (!PKCS12_set_mac(p12, password, -1, NULL, 0, 2048, NULL)) {
         ERR_print_errors_fp(stderr);
-        return 1;
+        goto cleanup;
     }
 
     /* Write P12 */
     f = fopen(p12_file, "wb");
     if (!f) {
         fprintf(stderr, "ERROR: Cannot open %s\n", p12_file);
-        return 1;
+        goto cleanup;
     }
     i2d_PKCS12_fp(f, p12);
     fclose(f);
@@ -106,13 +124,21 @@ int main(int argc, char *argv[]) {
     printf("✓ Successfully created reference P12: %s\n", p12_file);
     printf("  Certificate: %s\n", cert_file);
     printf("  Sentinel key: %s (no validation)\n", key_file);
-    printf("  Password: %s\n", password);
 
+    /* Success - clean up and exit */
     PKCS12_free(p12);
     sk_PKCS7_pop_free(safes, PKCS7_free);
     sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
     X509_free(cert);
     EVP_PKEY_free(pkey);
-
     return 0;
+
+cleanup:
+    /* Centralized cleanup on error */
+    if (p12) PKCS12_free(p12);
+    if (safes) sk_PKCS7_pop_free(safes, PKCS7_free);
+    if (bags) sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
+    if (cert) X509_free(cert);
+    if (pkey) EVP_PKEY_free(pkey);
+    return 1;
 }

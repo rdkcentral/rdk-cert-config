@@ -1,0 +1,678 @@
+/*
+ * Copyright 2023 Comcast Cable Communications Management, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <gmock/gmock.h>
+#include "miscellaneous.h"
+#include "rdkv_upgrade.h"  // For RdkUpgradeContext_t
+#include "rfcinterface.h"  // For Rfc_t definition
+
+// Conditionally include headers needed for specific stubs
+#ifdef RDKV_DBUS_STUBS_NEEDED
+#include "rdkv_dbus_server.h"  // For CurrentFlashState and other D-Bus types
+#endif
+
+#include "rdkv_cdl_log_wrapper.h"  // For SWLOG macros
+
+class MockDownloadFile {
+public:
+    virtual ~MockDownloadFile() {}  // Add a virtual destructor
+    virtual int downloadFile( int server_type, const char* artifactLocationUrl, const void* localDownloadLocation, char* pPostFields, int *httpCode ) =0;
+    virtual int codebigdownloadFile( int server_type, const char* artifactLocationUrl, const void* localDownloadLocation, char* pPostFields, int *httpCode )=0;
+};
+
+
+class MockDownloadFileOps {
+public:
+    MOCK_METHOD(int, downloadFile, (int server_type, const char* artifactLocationUrl, const void* localDownloadLocation, char* pPostFields, int *httpCode), ());
+    MOCK_METHOD(int, codebigdownloadFile, (int server_type, const char* artifactLocationUrl, const void* localDownloadLocation, char* pPostFields, int *httpCode), ());
+};
+
+MockDownloadFileOps* global_mockdownloadfileops_ptr;
+
+extern "C" {
+    int downloadFile(const RdkUpgradeContext_t* context, int *httpCode, void **curl) {
+        return global_mockdownloadfileops_ptr->downloadFile(context->server_type, context->artifactLocationUrl, context->dwlloc, context->pPostFields, httpCode);
+    }
+
+    int codebigdownloadFile(const RdkUpgradeContext_t* context, int *httpCode, void **curl) {
+        return global_mockdownloadfileops_ptr->codebigdownloadFile(context->server_type, context->artifactLocationUrl, context->dwlloc, context->pPostFields, httpCode);
+    }
+}
+
+class MockExternal {
+public:
+    MOCK_METHOD(unsigned int, doGetDwnlBytes, (void*), ());
+    MOCK_METHOD(int, doInteruptDwnl, (void*, unsigned int), ());
+    MOCK_METHOD(void, setForceStop, (int), ());
+    MOCK_METHOD(T2ERROR, t2_event_s, (char*, char*), ());
+    MOCK_METHOD(T2ERROR, t2_event_d, (char*, int), ());
+    MOCK_METHOD(void, t2_init, (char*), ());
+    MOCK_METHOD(int, getDeviceProperties, (DeviceProperty_t*), ());
+    MOCK_METHOD(int, getImageDetails, (ImageDetails_t*), ());
+    MOCK_METHOD(int, createDir, (const char*), ());
+    MOCK_METHOD(int, createFile, (const char*), ());  // Fixed return type to int
+    MOCK_METHOD(void, t2_uninit, (), ());
+    MOCK_METHOD(void, log_exit, (), ());
+    MOCK_METHOD(int, doHttpFileDownload, (void*, FileDwnl_t*, MtlsAuth_t*, unsigned int, char*, int*), ());
+    MOCK_METHOD(int, logFileData, (const char*), ());
+    MOCK_METHOD(bool, isMediaClientDevice, (), ());
+    MOCK_METHOD(int, doAuthHttpFileDownload, (void*, FileDwnl_t*, int*), ());
+    MOCK_METHOD(void, logMilestone, (const char*), ());
+    MOCK_METHOD(int, eraseFolderExcePramaFile, (const char*, const char*, const char*), ());
+    MOCK_METHOD(int, doCurlPutRequest, (void*, FileDwnl_t*, char*, int*), ());
+    MOCK_METHOD(void, checkAndEnterStateRed, (int, const char*), ());
+    MOCK_METHOD(int, getRFCSettings, (Rfc_t*), ());
+    MOCK_METHOD(void, eventManager, (const char*, const char*), ());
+    MOCK_METHOD(int, updateFWDownloadStatus, (struct FWDownloadStatus*, const char*), ());
+    MOCK_METHOD(int, init_event_handler, (), ());
+    MOCK_METHOD(int, isDwnlBlock, (int), ());
+    MOCK_METHOD(bool, checkCodebigAccess, (), ());
+    MOCK_METHOD(int, term_event_handler, (), ());
+    MOCK_METHOD(int, isThrottleEnabled, (const char*, const char*, int), ());
+    MOCK_METHOD(int, isOCSPEnable, (), ());
+    MOCK_METHOD(int, getMtlscert, (MtlsAuth_t*), ());
+    MOCK_METHOD(int, isIncremetalCDLEnable, (const char*), ());
+    MOCK_METHOD(bool, isDelayFWDownloadActive, (int, const char*, int), ());
+    MOCK_METHOD(bool, checkPDRIUpgrade, (const char*), ());
+    MOCK_METHOD(bool, isUpgradeInProgress, (), ());
+    MOCK_METHOD(bool, isMmgbleNotifyEnabled, (), ());
+    MOCK_METHOD(time_t, getCurrentSysTimeSec, (), ());
+    MOCK_METHOD(int, notifyDwnlStatus, (const char*, const char*, RFCVALDATATYPE), ());
+    MOCK_METHOD(bool, updateOPTOUTFile, (const char*), ());
+    MOCK_METHOD(bool, CheckIProuteConnectivity, (const char*), ());
+    MOCK_METHOD(bool, isDnsResolve, (const char*), ());
+    MOCK_METHOD(void, unsetStateRed, (), ());
+    MOCK_METHOD(bool, checkForValidPCIUpgrade, (int, const char*, const char*, const char*), ());
+    MOCK_METHOD(bool, isPDRIEnable, (), ());
+    MOCK_METHOD(bool, lastDwnlImg, (char*, size_t), ());
+    MOCK_METHOD(bool, currentImg, (char*, size_t), ());
+    MOCK_METHOD(bool, CurrentRunningInst, (const char*), ());
+    MOCK_METHOD(void, eraseTGZItemsMatching, (const char*, const char*), ());  // Uncommented for common_utilities
+    MOCK_METHOD(bool, prevFlashedFile, (char*, size_t), ());
+    MOCK_METHOD(int, doCodeBigSigning, (int, const char*, char*, size_t, char*, size_t), ());
+    
+    // REFACTORING FIX: Add mocks for common_utilities functions moved during stateless refactoring
+    MOCK_METHOD(void*, allocDowndLoadDataMem, (size_t), ());
+    MOCK_METHOD(int, GetFileContents, (const char*, char**, size_t*), ());
+    MOCK_METHOD(int, GetFirmwareVersion, (char*, size_t), ());
+    MOCK_METHOD(int, GetBuildType, (char*, size_t), ());
+    MOCK_METHOD(int, GetMFRName, (char*, size_t), ());
+    MOCK_METHOD(int, GetUTCTime, (char*, size_t), ());
+    MOCK_METHOD(int, GetTimezone, (char*, size_t), ());
+    MOCK_METHOD(void, waitForNtp, (), ());
+    MOCK_METHOD(int, GetCapabilities, (char*, size_t), ());
+    MOCK_METHOD(int, stripinvalidchar, (char*), ());
+    MOCK_METHOD(int, makeHttpHttps, (char*), ());
+};
+
+MockExternal* global_mockexternal_ptr;
+
+extern "C" {
+    unsigned int doGetDwnlBytes(void *in_curl) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->doGetDwnlBytes(in_curl);
+    }
+
+    int doInteruptDwnl(void *in_curl, unsigned int max_dwnl_speed) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->doInteruptDwnl(in_curl, max_dwnl_speed);
+    }
+
+    void setForceStop(int value) {
+        if (global_mockexternal_ptr == nullptr) {
+            return; // Return default value if global_mockexternal_ptr is NULL
+        }
+        global_mockexternal_ptr->setForceStop(value);
+    }
+
+    T2ERROR t2_event_s(char* marker, char* value) {
+        if (global_mockexternal_ptr == nullptr) {
+            return T2ERROR_SUCCESS; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->t2_event_s(marker, value);
+    }
+
+    T2ERROR t2_event_d(char* marker, int value) {
+        if (global_mockexternal_ptr == nullptr) {
+            return T2ERROR_SUCCESS; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->t2_event_d(marker, value);
+    }
+
+    void t2_init(char *component) {
+        if (global_mockexternal_ptr == nullptr) {
+            return; // Return default value if global_mockexternal_ptr is NULL
+        }
+        global_mockexternal_ptr->t2_init(component);
+    }
+
+    int getImageDetails(ImageDetails_t *pImage_details) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->getImageDetails(pImage_details);
+    }
+
+    int createDir(const char *dirname) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->createDir(dirname);
+    }
+
+    int createFile(const char *file_name) {
+        if (global_mockexternal_ptr == nullptr) {
+            FILE *file = fopen(file_name, "w");
+            if (file == NULL) {
+                printf("Failed to create file\n");
+                return -1;
+            }
+            fclose(file);
+            return 0; // Return success if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->createFile(file_name);
+    }
+
+    void t2_uninit(void) {
+        if (global_mockexternal_ptr == nullptr) {
+            return; // Return default value if global_mockexternal_ptr is NULL
+        }
+        global_mockexternal_ptr->t2_uninit();
+    }
+
+    void log_exit() {
+        if (global_mockexternal_ptr == nullptr) {
+            return; // Return default value if global_mockexternal_ptr is NULL
+        }
+        global_mockexternal_ptr->log_exit();
+    }
+
+    int doHttpFileDownload(void *in_curl, FileDwnl_t *pfile_dwnl, MtlsAuth_t *auth, unsigned int max_dwnl_speed, char *dnl_start_pos, int *out_httpCode) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->doHttpFileDownload(in_curl, pfile_dwnl, auth, max_dwnl_speed, dnl_start_pos, out_httpCode);
+    }
+
+    int logFileData(const char *file_path) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->logFileData(file_path);
+    }
+
+    bool isMediaClientDevice(void) {
+        if (global_mockexternal_ptr == nullptr) {
+            return false; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->isMediaClientDevice();
+    }
+
+    int doAuthHttpFileDownload(void *in_curl, FileDwnl_t *pfile_dwnl, int *out_httpCode) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->doAuthHttpFileDownload(in_curl, pfile_dwnl, out_httpCode);
+    }
+
+    void logMilestone(const char *msg_code) {
+        if (global_mockexternal_ptr == nullptr) {
+            return; // Return default value if global_mockexternal_ptr is NULL
+        }
+        global_mockexternal_ptr->logMilestone(msg_code);
+    }
+
+    int eraseFolderExcePramaFile(const char *folder, const char* file_name, const char *model_num) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->eraseFolderExcePramaFile(folder, file_name, model_num);
+    }
+
+    int doCurlPutRequest(void *in_curl, FileDwnl_t *pfile_dwnl, char *jsonrpc_auth_token, int *out_httpCode) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->doCurlPutRequest(in_curl, pfile_dwnl, jsonrpc_auth_token, out_httpCode);
+    }
+
+    void checkAndEnterStateRed(int curlret, const char *) {
+        if (global_mockexternal_ptr == nullptr) {
+            return; // Return default value if global_mockexternal_ptr is NULL
+        }
+        global_mockexternal_ptr->checkAndEnterStateRed(curlret, "");
+    }
+
+    int getRFCSettings(Rfc_t *rfc_list) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->getRFCSettings(rfc_list);
+    }
+
+    int getDeviceProperties(DeviceProperty_t *pDevice_info) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->getDeviceProperties(pDevice_info);
+    }
+    // gtest
+
+    void eventManager(const char *cur_event_name, const char *event_status) {
+        if (global_mockexternal_ptr == nullptr) {
+            return; // Return default value if global_mockexternal_ptr is NULL
+        }
+        global_mockexternal_ptr->eventManager(cur_event_name, event_status);
+    }
+
+    int updateFWDownloadStatus(struct FWDownloadStatus *fwdls, const char *disableStatsUpdate) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->updateFWDownloadStatus(fwdls, disableStatsUpdate);
+    }
+
+    int init_event_handler(void) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->init_event_handler();
+    }
+
+    int isDwnlBlock(int type) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->isDwnlBlock(type);
+    }
+
+    bool checkCodebigAccess(void) {
+        if (global_mockexternal_ptr == nullptr) {
+            return false; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->checkCodebigAccess();
+    }
+
+    int term_event_handler(void) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->term_event_handler();
+    }
+
+    int isThrottleEnabled(const char *device_name, const char *reboot_immediate_flag, int app_mode) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->isThrottleEnabled(device_name, reboot_immediate_flag, app_mode);
+    }
+
+    int isOCSPEnable(void) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->isOCSPEnable();
+    }
+
+    int getMtlscert(MtlsAuth_t *sec) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->getMtlscert(sec);
+    }
+
+    int isIncremetalCDLEnable(const char *file_name) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->isIncremetalCDLEnable(file_name);
+    }
+
+    bool isDelayFWDownloadActive(int DelayDownloadXconf, const char *maint, int trigger_type) {
+        if (global_mockexternal_ptr == nullptr) {
+            return false; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->isDelayFWDownloadActive(DelayDownloadXconf, maint, trigger_type);
+    }
+
+    bool checkPDRIUpgrade(const char *dwnl_pdri_img) {
+        if (global_mockexternal_ptr == nullptr) {
+            return false; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->checkPDRIUpgrade(dwnl_pdri_img);
+    }
+
+    bool isUpgradeInProgress(void) {
+        if (global_mockexternal_ptr == nullptr) {
+            return false; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->isUpgradeInProgress();
+    }
+
+    bool isMmgbleNotifyEnabled(void) {
+        if (global_mockexternal_ptr == nullptr) {
+            return false; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->isMmgbleNotifyEnabled();
+    }
+
+    time_t getCurrentSysTimeSec(void) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->getCurrentSysTimeSec();
+    }
+
+    int notifyDwnlStatus(const char *key, const char *value, RFCVALDATATYPE datatype) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->notifyDwnlStatus(key, value, datatype);
+    }
+    bool updateOPTOUTFile(const char *value) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->updateOPTOUTFile(value);
+    }
+
+
+    bool CheckIProuteConnectivity(const char *file_name) {
+        if (global_mockexternal_ptr == nullptr) {
+            return false; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->CheckIProuteConnectivity(file_name);
+    }
+
+    bool isDnsResolve(const char *dns_file_name) {
+        if (global_mockexternal_ptr == nullptr) {
+            return false; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->isDnsResolve(dns_file_name);
+    }
+
+    void unsetStateRed(void) {
+        if (global_mockexternal_ptr == nullptr) {
+            return; // Return default value if global_mockexternal_ptr is NULL
+        }
+        global_mockexternal_ptr->unsetStateRed();
+    }
+
+    bool checkForValidPCIUpgrade(int trigger_type, const char *myfwversion, const char *cloudFWVersion, const char *cloudFWFile) {
+        if (global_mockexternal_ptr == nullptr) {
+            return false; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->checkForValidPCIUpgrade(trigger_type, myfwversion, cloudFWVersion, cloudFWFile);
+    }
+
+    bool isPDRIEnable(void) {
+        if (global_mockexternal_ptr == nullptr) {
+            return false; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->isPDRIEnable();
+    }
+
+    bool lastDwnlImg(char *img_name, size_t img_name_size) {
+        if (global_mockexternal_ptr == nullptr) {
+            return false; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->lastDwnlImg(img_name, img_name_size);
+    }
+    bool currentImg(char *img_name, size_t img_name_size) {
+        if (global_mockexternal_ptr == nullptr) {
+            return false; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->currentImg(img_name, img_name_size);
+    }
+
+    bool CurrentRunningInst(const char *file) {
+        if (global_mockexternal_ptr == nullptr) {
+            return false; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->CurrentRunningInst(file);
+    }
+
+    void eraseTGZItemsMatching(const char *path, const char *pattern) {
+        if (global_mockexternal_ptr == nullptr) {
+            return; // Return default value if global_mockexternal_ptr is NULL
+        }
+        global_mockexternal_ptr->eraseTGZItemsMatching(path, pattern);
+    }
+
+    bool prevFlashedFile(char *img_name, size_t img_name_size) {
+        if (global_mockexternal_ptr == nullptr) {
+            return false; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->prevFlashedFile(img_name, img_name_size);
+    }
+
+    int doCodeBigSigning(int server_type, const char* SignInput, char *signurl, size_t signurlsize, char *outhheader, size_t outHeaderSize) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0; // Return default value if global_mockexternal_ptr is NULL
+        }
+        return global_mockexternal_ptr->doCodeBigSigning(server_type, SignInput, signurl, signurlsize, outhheader, outHeaderSize);
+    }
+
+    // REFACTORING FIX: Extern C wrappers for common_utilities functions
+    // allocDowndLoadDataMem: Local function used by rdkv_main.c, flash.c, device_api.c
+    // Signature: int allocDowndLoadDataMem(void *ptr, int size)
+    int allocDowndLoadDataMem(void *ptr, int size) {
+        // Cast ptr to DownloadData* and allocate memory
+        DownloadData *pDwnData = (DownloadData *)ptr;
+        
+        if (pDwnData == NULL || size <= 0) {
+            return -1;
+        }
+        
+        // Allocate memory
+        pDwnData->pvOut = malloc(size);
+        if (pDwnData->pvOut == NULL) {
+            return -1;
+        }
+        
+        pDwnData->memsize = size;
+        pDwnData->datasize = 0;
+        memset(pDwnData->pvOut, 0, size);
+        
+        return 0;
+    }
+
+    int GetFileContents(const char *filename, char **buffer, size_t *size) {
+        if (global_mockexternal_ptr == nullptr) {
+            return -1;
+        }
+        return global_mockexternal_ptr->GetFileContents(filename, buffer, size);
+    }
+
+    int GetFirmwareVersion(char *buffer, size_t size) {
+        if (global_mockexternal_ptr == nullptr) {
+            snprintf(buffer, size, "1.0.0.0");
+            return 0;
+        }
+        return global_mockexternal_ptr->GetFirmwareVersion(buffer, size);
+    }
+
+    int GetBuildType(char *buffer, size_t size) {
+        if (global_mockexternal_ptr == nullptr) {
+            snprintf(buffer, size, "PROD");
+            return 0;
+        }
+        return global_mockexternal_ptr->GetBuildType(buffer, size);
+    }
+
+    int GetMFRName(char *buffer, size_t size) {
+        if (global_mockexternal_ptr == nullptr) {
+            snprintf(buffer, size, "TestMFR");
+            return 0;
+        }
+        return global_mockexternal_ptr->GetMFRName(buffer, size);
+    }
+
+    int GetUTCTime(char *buffer, size_t size) {
+        if (global_mockexternal_ptr == nullptr) {
+            snprintf(buffer, size, "2025-10-31T00:00:00Z");
+            return 0;
+        }
+        return global_mockexternal_ptr->GetUTCTime(buffer, size);
+    }
+
+    int GetTimezone(char *buffer, size_t size) {
+        if (global_mockexternal_ptr == nullptr) {
+            snprintf(buffer, size, "UTC");
+            return 0;
+        }
+        return global_mockexternal_ptr->GetTimezone(buffer, size);
+    }
+
+    void waitForNtp(void) {
+        if (global_mockexternal_ptr == nullptr) {
+            return;
+        }
+        global_mockexternal_ptr->waitForNtp();
+    }
+
+    int GetCapabilities(char *buffer, size_t size) {
+        if (global_mockexternal_ptr == nullptr) {
+            snprintf(buffer, size, "capabilities");
+            return 0;
+        }
+        return global_mockexternal_ptr->GetCapabilities(buffer, size);
+    }
+
+    int stripinvalidchar(char *str) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0;
+        }
+        return global_mockexternal_ptr->stripinvalidchar(str);
+    }
+
+    int makeHttpHttps(char *url) {
+        if (global_mockexternal_ptr == nullptr) {
+            return 0;
+        }
+        return global_mockexternal_ptr->makeHttpHttps(url);
+    }
+
+#ifndef GTEST_BASIC
+    // Mock for rdkv_upgrade_request - used by rdkFwupdateMgr.c main flow tests
+    // Only compile when NOT building GTEST_BASIC (rdkfw_main_gtest uses real rdkv_upgrade.c)
+    int rdkv_upgrade_request(const RdkUpgradeContext_t* context, void** curl, int* pHttp_code) {
+        // Return success by default for tests that don't focus on download/upgrade flow
+        if (pHttp_code) {
+            *pHttp_code = 200; // HTTP OK
+        }
+        return 0; // Success
+    }
+#endif
+
+    // ===========================================================================
+    // EXTERNAL LIBRARY STUBS (IARM, RFC, etc.)
+    // These are stubs for external library functions that are not mocked
+    // ===========================================================================
+
+    // IARM Bus stubs
+    int IARM_Bus_Init(const char *name) { return 0; }
+    int IARM_Bus_Connect(void) { return 0; }
+    int IARM_Bus_Disconnect(void) { return 0; }
+    int IARM_Bus_Term(void) { return 0; }
+    int IARM_Bus_IsConnected(const char *memberName, int *isRegistered) {
+        if (isRegistered) *isRegistered = 1;
+        return 0;
+    }
+    int IARM_Bus_RegisterEventHandler(const char *ownerName, int eventId, void *handler) { return 0; }
+    int IARM_Bus_UnRegisterEventHandler(const char *ownerName, int eventId) { return 0; }
+    int IARM_Bus_BroadcastEvent(const char *ownerName, int eventId, void *data, size_t len) { return 0; }
+
+    // RFC API stubs
+    int getRFCParameter(char* pcCallerID, const char* pcParameterName, char* pValue) {
+        if (pValue) {
+            strcpy(pValue, "false"); // Default RFC value
+        }
+        return 0;
+    }
+
+    int setRFCParameter(char* pcCallerID, const char* pcParameterName, const char* pcParameterType, const char* pcParameterValue) {
+        return 0;
+    }
+
+    const char* getRFCErrorString(int code) {
+        return "RFC_SUCCESS";
+    }
+}
+
+class MockFunctionsInternal {
+public:
+    MOCK_METHOD(void, RunCommand, (int command, void* arg1, char* jsondata, int size));
+    MOCK_METHOD(void, getJRPCTokenData, (char* token, char* jsondata, int size));
+    MOCK_METHOD(void*, doCurlInit, ());
+    MOCK_METHOD(int, doCurlPutRequest, (void* Curl_req, FileDwnl_t* req_data, char* token_header, int* httpCode));
+    MOCK_METHOD(void, doStopDownload, (void* Curl_req));
+    MOCK_METHOD(bool, checkForValidPCIUpgrade, (int trigger_type, const char* cur_img_name, const char* cloudFWVersion, const char* cloudFWFile));
+    MOCK_METHOD(int, getOPTOUTValue, (const char* path));
+    MOCK_METHOD(void, uninitialize, (int status));
+    MOCK_METHOD(int, rdkv_upgrade_request, (const RdkUpgradeContext_t* context, void** curl, int* pHttp_code));
+    MOCK_METHOD(bool, isPDRIEnable, ());
+    MOCK_METHOD(int, filePresentCheck, (const char* path));
+    MOCK_METHOD(int, peripheral_firmware_dndl, (const char* cloudFWLocation, const char* peripheralFirmwares));
+};
+
+// =============================================================================
+// Missing Global Symbols for Handlers Test Linking
+// =============================================================================
+
+// =============================================================================
+// D-Bus and Handler-Specific Stubs (for rdkFwupdateMgr_handlers tests)
+// =============================================================================
+
+extern "C" {
+    // Forward declarations for types (avoid requiring full headers)
+    typedef struct _CurrentFlashState CurrentFlashState;
+    
+    #ifndef TRUE
+    #define TRUE 1
+    #define FALSE 0
+    #endif
+    
+    #ifndef gboolean
+    typedef int gboolean;
+    #endif
+    
+    // Global flash state (declared in rdkv_dbus_server.c, needed by rdkFwupdateMgr_handlers.c)
+    CurrentFlashState *current_flash = NULL;
+    
+    // Global RFC configuration:
+    // Note: rfc_list is defined in rdkv_main.c and rdkFwupdateMgr.c, so we DON'T define it here.
+    // Tests that include those source files will get the definition from production code.
+    // Tests that don't (like rdkFwupdateMgr_handlers_gtest) need to have it declared as extern.
+    // We only define it for handler tests that don't include any main source files
+    #if !defined(GTEST_BASIC) && defined(HANDLER_TEST_ONLY)
+    Rfc_t rfc_list = {0};
+    #endif
+    
+    // Flash status check function (defined in rdkv_dbus_server.c)
+    gboolean IsFlashInProgress(void) {
+        return (current_flash != NULL) ? TRUE : FALSE;
+    }
+}
+
+// Note: SWLOG_* functions are defined as macros in rdkv_cdl_log_wrapper.h
+// so we don't need to provide function implementations

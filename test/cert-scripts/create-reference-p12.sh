@@ -1,7 +1,7 @@
 #!/bin/bash
 ##########################################################################
 # Create reference P12 file with sentinel key for PKCS#11 testing
-# The sentinel key is all zeros (32 bytes) to trigger P12 patch behavior
+# Generates EC P-256 key with 32-byte private value zeroed out
 ##########################################################################
 
 set -e
@@ -16,11 +16,11 @@ fi
 
 CERT_FILE="$1"
 OUTPUT_P12="$2"
-PASSWORD="${3:-changeit}"
+PASSWORD="${3-changeit}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TOOL_BIN="${SCRIPT_DIR}/tools/make_ref_p12"
 TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR" EXIT
+trap 'rm -rf "$TEMP_DIR"' EXIT
 
 echo "[create-reference-p12] Creating reference P12 with sentinel key..."
 
@@ -34,11 +34,10 @@ fi
 if [ ! -f "$TOOL_BIN" ]; then
     echo "[create-reference-p12] Building make_ref_p12 tool..."
     if [ -f "${SCRIPT_DIR}/tools/make_ref_p12.c" ]; then
-        gcc -o "$TOOL_BIN" "${SCRIPT_DIR}/tools/make_ref_p12.c" -lssl -lcrypto
-        if [ $? -ne 0 ]; then
+        gcc -o "$TOOL_BIN" "${SCRIPT_DIR}/tools/make_ref_p12.c" -lssl -lcrypto || {
             echo "[create-reference-p12] ERROR: Failed to compile make_ref_p12"
             exit 1
-        fi
+        }
     else
         echo "[create-reference-p12] ERROR: make_ref_p12.c not found"
         exit 1
@@ -85,7 +84,7 @@ fi
 
 if [ $? -eq 0 ] && [ -f "$OUTPUT_P12" ]; then
     echo "[create-reference-p12] ✓ Reference P12 created: $OUTPUT_P12"
-    echo "[create-reference-p12] Sentinel key: 32 bytes of zeros"
+    echo "[create-reference-p12] Sentinel key: EC P-256 with zeroed private key value"
     exit 0
 else
     echo "[create-reference-p12] ERROR: Failed to create reference P12"

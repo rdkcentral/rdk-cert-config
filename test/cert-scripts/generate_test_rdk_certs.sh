@@ -35,10 +35,10 @@
 #    --untrusted-root        Generate a root CA that won't be in the trust store
 #    --missing-cert          Simulate a missing certificate file
 #    --cert-key-mismatch     Generate a certificate with mismatched private key
-  --missing-passcode      Generate a P12 file with no password
-  --wrong-passcode        Generate a P12 file with a different password than expected
-  --enable-pkcs11-ref     Create reference P12 with sentinel key for PKCS#11 testing
-  --help                  Display this help message
+#    --missing-passcode      Generate a P12 file with no password
+#    --wrong-passcode        Generate a P12 file with a different password than expected
+#    --enable-pkcs11-ref     Create reference P12 with sentinel key for PKCS#11 testing
+#    --help                  Display this help message
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(dirname "$0")"
@@ -165,41 +165,49 @@ parse_args() {
       FAILURE_MODE="expired-cert"
       LEAF_CERT_OPTIONS="--expired"
       echo "Generating expired leaf certificate..."
+      shift
       ;;
     --expired-intermediate)
       FAILURE_MODE="expired-intermediate"
       ICA_OPTIONS="--expired"
       echo "Generating expired intermediate CA..."
+      shift
       ;;
     --expired-root)
       FAILURE_MODE="expired-root"
       ROOT_CA_OPTIONS="--expired"
       echo "Generating expired root CA..."
+      shift
       ;;
     --corrupted-cert)
       FAILURE_MODE="corrupted-cert"
       LEAF_CERT_OPTIONS="--corrupted"
       echo "Generating corrupted leaf certificate..."
+      shift
       ;;
     --corrupted-intermediate)
       FAILURE_MODE="corrupted-intermediate"
       ICA_OPTIONS="--corrupted"
       echo "Generating corrupted intermediate CA..."
+      shift
       ;;
     --corrupted-root)
       FAILURE_MODE="corrupted-root"
       ROOT_CA_OPTIONS="--corrupted"
       echo "Generating corrupted root CA..."
+      shift
       ;;
     --revoked-cert)
       FAILURE_MODE="revoked-cert"
       LEAF_CERT_OPTIONS="--revoked"
       echo "Generating revoked leaf certificate..."
+      shift
       ;;
     --revoked-intermediate)
       FAILURE_MODE="revoked-intermediate"
       ICA_OPTIONS="--revoked"
       echo "Generating revoked intermediate CA..."
+      shift
       ;;
     --enable-pkcs11-ref)
       ENABLE_PKCS11_REF=true
@@ -210,32 +218,38 @@ parse_args() {
       FAILURE_MODE="revoked-root"
       # We don't set ROOT_CA_OPTIONS because root CA revocation is not implemented
       echo "Generating revoked root CA..."
+      shift
       ;;
     --untrusted-root)
       FAILURE_MODE="untrusted-root"
       echo "Generating untrusted root CA..."
+      shift
       ;;
     --missing-cert)
       FAILURE_MODE="missing-cert"
       LEAF_CERT_OPTIONS="--missing-cert"
       echo "Simulating missing certificate file..."
+      shift
       ;;
     --cert-key-mismatch)
       FAILURE_MODE="cert-key-mismatch"
       LEAF_CERT_OPTIONS="--key-mismatch"
       echo "Generating certificate with mismatched private key..."
+      shift
       ;;
     --missing-passcode)
       FAILURE_MODE="missing-passcode"
       CERT_PASSWORD=""
       LEAF_CERT_OPTIONS="--no-password"
       echo "Generating P12 file with no password..."
+      shift
       ;;
     --wrong-passcode)
       FAILURE_MODE="wrong-passcode"
       CERT_PASSWORD="incorrect-password"
       LEAF_CERT_OPTIONS="--wrong-password"
       echo "Generating P12 file with incorrect password..."
+      shift
       ;;
     --key-type)
       if [[ "$2" == "rsa" || "$2" == "ecc" ]]; then
@@ -441,6 +455,8 @@ main() {
   fi
 
   # Create reference P12 if requested
+  # NOTE: This flag is NOT currently used by certs.sh - reference P12 is created directly
+  # via create-reference-p12.sh when ENABLE_PKCS11=true
   if [ "$ENABLE_PKCS11_REF" = "true" ]; then
     echo_t ""
     echo_t "Creating reference P12 with sentinel key for PKCS#11..."
@@ -453,7 +469,7 @@ main() {
     
     if [ $? -eq 0 ]; then
       echo_t "✓ Reference P12 created: $REFERENCE_P12"
-      echo_t "  Use this P12 with PKCS#11 slot 0x2c for migration testing"
+      echo_t "  Sentinel key has zeroed private value (detected by patched OpenSSL)"
     else
       echo_t "WARNING: Reference P12 creation failed"
     fi
