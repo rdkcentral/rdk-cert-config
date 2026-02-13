@@ -339,6 +339,25 @@ generate_certificates() {
 
   # Single call to create_leaf_cert.sh with the appropriate options
   "${SCRIPT_DIR}/create_leaf_cert.sh" --cert-name "${CERT_NAME}" --ca-name "${ICA_NAME}" --type "${CERT_TYPE}" --key-type "${KEY_TYPE}" --key-size "${KEY_SIZE}" --cn "${COMMON_NAME}" $LEAF_CERT_OPTIONS
+
+  # Generate reference P12 with sentinel key for PKCS#11 testing (client certificates only)
+  if [ "${CERT_TYPE}" = "client" ] && [ -f "${SCRIPT_DIR}/create-reference-p12.sh" ]; then
+    echo ""
+    echo "Generating reference P12 with sentinel key for PKCS#11 testing..."
+    
+    CLIENT_CERT="${CERT_DIR}/${ICA_NAME}/certs/${CERT_NAME}.pem"
+    REFERENCE_P12="${CERT_DIR}/${ICA_NAME}/certs/reference.p12"
+    
+    # Create reference P12 only if both ENABLE_MTLS and ENABLE_PKCS11 are true
+    if [ "${ENABLE_MTLS}" = "true" ] && [ "${ENABLE_PKCS11}" = "true" ]; then
+      if [ -f "$CLIENT_CERT" ]; then
+        "${SCRIPT_DIR}/create-reference-p12.sh" "$CLIENT_CERT" "$REFERENCE_P12" "$CERT_PASSWORD" "2c"
+        echo "✓ Reference P12 created: $REFERENCE_P12 (MTLS + PKCS11 enabled)"
+      else
+        echo "⚠ Skipping reference P12 generation: client certificate not found"
+      fi
+    fi
+  fi
 }
 
 # Copy files to test scenarios directory if needed
