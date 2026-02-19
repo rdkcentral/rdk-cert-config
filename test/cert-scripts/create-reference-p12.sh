@@ -47,7 +47,7 @@ echo ""
 
 # Create temp directory
 mkdir -p "$TEMP_DIR"
-trap "rm -rf $TEMP_DIR" EXIT
+trap 'rm -rf -- "$TEMP_DIR"' EXIT
 
 # Verify certificate exists
 if [ ! -f "$CERT_FILE" ]; then
