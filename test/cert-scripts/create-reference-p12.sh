@@ -41,7 +41,7 @@ echo ""
 echo "Configuration:"
 echo "  Certificate: $CERT_FILE"
 echo "  Output P12:  $OUTPUT_P12"
-echo "  Password:    $P12_PASSWORD"
+echo "  Password:    [hidden]"
 echo "  PKCS#11 Key ID: 0x$KEY_ID"
 echo ""
 
