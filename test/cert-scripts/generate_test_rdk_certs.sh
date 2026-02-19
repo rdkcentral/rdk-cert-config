@@ -351,6 +351,7 @@ generate_certificates() {
     # Create reference P12 only if both ENABLE_MTLS and ENABLE_PKCS11 are true
     if [ "${ENABLE_MTLS}" = "true" ] && [ "${ENABLE_PKCS11}" = "true" ]; then
       if [ -f "$CLIENT_CERT" ]; then
+        chmod +x "${SCRIPT_DIR}/create-reference-p12.sh"
         "${SCRIPT_DIR}/create-reference-p12.sh" "$CLIENT_CERT" "$REFERENCE_P12" "$CERT_PASSWORD" "2c"
         echo "✓ Reference P12 created: $REFERENCE_P12 (MTLS + PKCS11 enabled)"
       else
