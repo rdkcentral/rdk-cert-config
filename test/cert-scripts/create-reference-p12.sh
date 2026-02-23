@@ -143,10 +143,11 @@ SENTINEL_HEX=$(openssl pkcs12 -in "$OUTPUT_P12" -passin "pass:$P12_PASSWORD" -no
 echo "    First 64 hex chars: $(echo "$SENTINEL_HEX" | head -c 64)"
 echo "    Expected pattern:   0000000000000000000000000000000000000000000000000000000000000000"
 
-if echo "$SENTINEL_HEX" | head -c 64 | grep -q "^00000000000000000000000000000000"; then
-    echo "    ✓ Sentinel pattern detected (all zeros)"
+# Check full 64 hex chars (32 bytes) for all zeros
+if echo "$SENTINEL_HEX" | head -c 64 | grep -qE "^0{64}$"; then
+    echo "    ✓ Sentinel pattern detected (full 32 bytes are zeros)"
 else
-    echo "    ✗ WARNING: Sentinel pattern NOT detected"
+    echo "    ✗ WARNING: Sentinel pattern NOT detected (not all 32 bytes are zero)"
 fi
 
 echo ""

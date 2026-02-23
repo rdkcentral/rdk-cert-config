@@ -342,21 +342,27 @@ generate_certificates() {
 
   # Generate reference P12 with sentinel key for PKCS#11 testing (client certificates only)
   if [ "${CERT_TYPE}" = "client" ] && [ -f "${SCRIPT_DIR}/create-reference-p12.sh" ]; then
-    echo ""
-    echo "Generating reference P12 with sentinel key for PKCS#11 testing..."
-    
     CLIENT_CERT="${CERT_DIR}/${ICA_NAME}/certs/${CERT_NAME}.pem"
     REFERENCE_P12="${CERT_DIR}/${ICA_NAME}/certs/reference.p12"
     
     # Create reference P12 only if both ENABLE_MTLS and ENABLE_PKCS11 are true
     if [ "${ENABLE_MTLS}" = "true" ] && [ "${ENABLE_PKCS11}" = "true" ]; then
+      echo ""
+      echo "Generating reference P12 with sentinel key for PKCS#11 testing..."
+      
       if [ -f "$CLIENT_CERT" ]; then
         chmod +x "${SCRIPT_DIR}/create-reference-p12.sh"
-        "${SCRIPT_DIR}/create-reference-p12.sh" "$CLIENT_CERT" "$REFERENCE_P12" "$CERT_PASSWORD" "2c"
-        echo "✓ Reference P12 created: $REFERENCE_P12 (MTLS + PKCS11 enabled)"
+        if "${SCRIPT_DIR}/create-reference-p12.sh" "$CLIENT_CERT" "$REFERENCE_P12" "$CERT_PASSWORD"; then
+          echo "✓ Reference P12 created: $REFERENCE_P12 (MTLS + PKCS11 enabled)"
+        else
+          echo "✗ ERROR: Reference P12 generation failed (exit code: $?)"
+          exit 1
+        fi
       else
-        echo "⚠ Skipping reference P12 generation: client certificate not found"
+        echo "⚠ Skipping reference P12 generation: client certificate not found at $CLIENT_CERT"
       fi
+    else
+      echo "⚠ Skipping reference P12 generation: ENABLE_MTLS=${ENABLE_MTLS}, ENABLE_PKCS11=${ENABLE_PKCS11} (both must be true)"
     fi
   fi
 }
