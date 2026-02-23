@@ -29,7 +29,7 @@ EXTRA_DIST = make_ref_p12.c
 # Build make_ref_p12 helper program
 noinst_PROGRAMS = make_ref_p12
 make_ref_p12_SOURCES = make_ref_p12.c
-make_ref_p12_LDADD = -lssl -lcrypto
+make_ref_p12_LDADD = $(OPENSSL_LIBS)
 
 # Run installation steps during installation
 install-data-hook:
