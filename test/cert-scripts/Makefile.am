@@ -23,8 +23,8 @@ certscripts_SCRIPTS = \
     generate_test_rdk_certs.sh \
     create-reference-p12.sh
 
-certscripts_DATA = \
-    make_ref_p12.c
+# Distribute make_ref_p12.c with the tarball, but do not install it as data
+EXTRA_DIST = make_ref_p12.c
 
 # Build make_ref_p12 helper program
 noinst_PROGRAMS = make_ref_p12
