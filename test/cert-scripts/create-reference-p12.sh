@@ -9,13 +9,14 @@
 # The sentinel key triggers the PKCS#11 P12 patch to load the real private key
 # from a hardware token instead of using the sentinel key.
 #
-# Usage: create-reference-p12.sh <cert_file> <output_p12> [password] [key_id]
+# Usage: create-reference-p12.sh <cert_file> <output_p12> [password]
 #
 # Arguments:
 #   cert_file   - Path to certificate PEM file (default: client.pem)
 #   output_p12  - Path to output P12 file (default: reference.p12)
 #   password    - P12 password (default: changeit)
-#   key_id      - PKCS#11 key ID in hex (default: 2c)
+#
+# Note: The sentinel key always uses PKCS#11 slot 0x2c (hardcoded in OpenSSL patch)
 #
 # Output:
 #   - reference.p12: P12 file with certificate and sentinel key
@@ -29,20 +30,19 @@ set -e
 CERT_FILE="${1:-client.pem}"
 OUTPUT_P12="${2:-reference.p12}"
 P12_PASSWORD="${3:-changeit}"
-KEY_ID="${4:-2c}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMP_DIR="/tmp/create_ref_p12_$$"
 
-echo "════════════════════════════════════════════════════════════════════"
+echo "═══════════════════════════════════════════════════════════════════════"
 echo "Reference P12 Generator with Sentinel Key"
-echo "════════════════════════════════════════════════════════════════════"
+echo "═══════════════════════════════════════════════════════════════════════"
 echo ""
 echo "Configuration:"
 echo "  Certificate: $CERT_FILE"
 echo "  Output P12:  $OUTPUT_P12"
 echo "  Password:    [hidden]"
-echo "  PKCS#11 Key ID: 0x$KEY_ID"
+echo "  PKCS#11 Key ID: 0x2c (fixed)"
 echo ""
 
 # Create temp directory
@@ -84,11 +84,11 @@ fi
 OFFSET=$((HEADER_OFFSET + 2))
 
 # Create sentinel pattern: 32 bytes of 0x00 (all zeros)
-# Patch logic:
-#   1. Checks first 30 bytes are zero → triggers reference key detection
-#   2. Extracts byte 31 as key_id → will be 0x00
-#   3. Applies default: key_id = (key_id == 0x00) ? 0x2c : key_id → becomes 0x2c
-# Result: OpenSSL detects all-zero key, uses PKCS#11 slot 0x2c
+# OpenSSL P12 patch logic:
+#   1. Checks first 30 bytes are zero → triggers sentinel key detection
+#   2. Extracts byte 31 as key_id → 0x00 (all zeros)
+#   3. Applies default: if (key_id == 0x00) then key_id = 0x2c
+# Result: Always uses PKCS#11 slot 0x2c (hardcoded default)
 dd if=/dev/zero of="$TEMP_DIR/sentinel32.bin" bs=1 count=32 2>/dev/null
 
 # Replace the 32-byte private key value with sentinel pattern (all zeros)
@@ -159,10 +159,10 @@ echo "Password: (not displayed; provided via argument or default)"
 echo ""
 echo "This P12 file contains:"
 echo "  • Real certificate from $CERT_FILE"
-echo "  • Sentinel key (32 bytes of zeros) → redirects to PKCS#11 slot 0x$KEY_ID"
+echo "  • Sentinel key (32 bytes of zeros) → redirects to PKCS#11 slot 0x2c"
 echo ""
 echo "When used with the PKCS#11 P12 patch, OpenSSL will:"
-echo "  1. Detect the sentinel key pattern"
-echo "  2. Load the real private key from PKCS#11 hardware token (slot 0x$KEY_ID)"
+echo "  1. Detect the sentinel key pattern (all zeros)"
+echo "  2. Load the real private key from PKCS#11 hardware token (slot 0x2c)"
 echo "  3. Complete mTLS handshake using hardware-backed key"
 echo ""
