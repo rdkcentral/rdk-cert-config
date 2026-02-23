@@ -20,22 +20,24 @@ certscripts_SCRIPTS = \
     cert_utils.sh \
     create_ca.sh \
     create_leaf_cert.sh \
-    generate_test_rdk_certs.sh \
-    create-reference-p12.sh
+    generate_test_rdk_certs.sh
 
-# Distribute make_ref_p12.c with the tarball, but do not install it as data
-EXTRA_DIST = make_ref_p12.c
+# Distribute source files with the tarball
+EXTRA_DIST = make_ref_p12.c create_reference_p12.c
 
-# Build make_ref_p12 helper program
-noinst_PROGRAMS = make_ref_p12
+# Build helper programs
+noinst_PROGRAMS = make_ref_p12 create_reference_p12
 make_ref_p12_SOURCES = make_ref_p12.c
 make_ref_p12_LDADD = $(OPENSSL_LIBS)
+create_reference_p12_SOURCES = create_reference_p12.c
+create_reference_p12_LDADD = $(OPENSSL_LIBS)
 
 # Run installation steps during installation
 install-data-hook:
 	$(MKDIR_P) $(DESTDIR)$(datadir)/cert-scripts
 	chmod +x $(DESTDIR)$(datadir)/cert-scripts/*.sh
 	$(INSTALL_PROGRAM) make_ref_p12 $(DESTDIR)$(datadir)/cert-scripts/make_ref_p12
+	$(INSTALL_PROGRAM) create_reference_p12 $(DESTDIR)$(datadir)/cert-scripts/create_reference_p12
 	$(MKDIR_P) $(DESTDIR)/etc/pki
 	$(MKDIR_P) $(DESTDIR)/etc/ssl/certsel
 	cd $(DESTDIR) && ln -sf $(datadir)/cert-scripts /etc/pki/scripts
