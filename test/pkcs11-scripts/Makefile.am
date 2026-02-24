@@ -1,4 +1,4 @@
-# Copyright 2025 Comcast Cable Communications Management, LLC
+# Copyright 2026 RDK Management
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,10 +15,16 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-if CSPC_L2_TEST
-SUBDIRS = l2-sampleapp
-endif
+# Install PKCS#11 setup scripts
+pkcs11scriptsdir = $(datadir)/pkcs11-scripts
+pkcs11scripts_SCRIPTS = \
+    init-pkcs11-tokens.sh \
+    import-certs-to-pkcs11.sh \
+    setup-pkcs11-openssl.sh
 
-if TEST_RDK_CERTS
-SUBDIRS = cert-scripts pkcs11-scripts patches
-endif
+# Install SoftHSM2 configuration file
+pkcs11scripts_DATA = softhsm2.conf
+
+# Make scripts executable after installation
+install-data-hook:
+	chmod +x $(DESTDIR)$(pkcs11scriptsdir)/*.sh

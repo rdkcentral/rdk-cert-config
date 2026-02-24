@@ -154,7 +154,7 @@ AM_COND_IF([CSPC_RDKCONFIG_SUPPORT_ENABLED],[],[AC_CONFIG_FILES([RdkConfigApi/Ma
 fi
 
 AM_COND_IF([CSPC_L2_TEST],[AC_CONFIG_FILES([test/l2-sampleapp/Makefile])],[])
-AM_COND_IF([TEST_RDK_CERTS],[AC_CONFIG_FILES([test/cert-scripts/Makefile])],[])
+AM_COND_IF([TEST_RDK_CERTS],[AC_CONFIG_FILES([test/cert-scripts/Makefile test/pkcs11-scripts/Makefile test/patches/Makefile])],[])
 
 if test x$GTEST_SUPPORT_ENABLED == xtrue; then
 # Checks for library functions.
