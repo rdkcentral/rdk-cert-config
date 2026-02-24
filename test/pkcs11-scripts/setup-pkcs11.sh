@@ -63,6 +63,9 @@ softhsm2-util --show-slots
 echo ""
     echo "[setup-pkcs11] === Importing certificates to PKCS#11 ==="
     
+    # Initialize flag
+    SKIP_CERT_IMPORT=false
+    
     # Verify PKCS#11 module exists
     if [ ! -f "$PKCS11_MODULE" ]; then
         echo "[setup-pkcs11] ERROR: PKCS#11 module not found: $PKCS11_MODULE"
