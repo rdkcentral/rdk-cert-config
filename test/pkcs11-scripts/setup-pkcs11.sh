@@ -63,9 +63,6 @@ softhsm2-util --show-slots
 echo ""
     echo "[setup-pkcs11] === Importing certificates to PKCS#11 ==="
     
-    # Initialize flag
-    SKIP_CERT_IMPORT=false
-    
     # Verify PKCS#11 module exists
     if [ ! -f "$PKCS11_MODULE" ]; then
         echo "[setup-pkcs11] ERROR: PKCS#11 module not found: $PKCS11_MODULE"
@@ -111,10 +108,9 @@ echo ""
     else
         echo "[setup-pkcs11] WARNING: No client certificate files found"
         echo "[setup-pkcs11] Skipping certificate import"
-        SKIP_CERT_IMPORT=true
     fi
     
-    if [ "$SKIP_CERT_IMPORT" = false ]; then
+    if [ -n "$CLIENT_CERT" ] && [ -f "$CLIENT_CERT" ]; then
         # Import to slot 0x01 (standard mTLS)
         echo "[setup-pkcs11] Importing client certificate to slot 0x01..."
         
