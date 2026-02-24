@@ -21,21 +21,9 @@ TOKEN_DIR="${TOKEN_DIR:-/var/lib/softhsm/tokens}"
 CERT_DIR="${CERT_DIR:-/opt/certs}"
 PKCS11_MODULE="${PKCS11_MODULE:-/usr/lib/softhsm/libsofthsm2.so}"
 
-# Options
-SKIP_TOKEN_INIT=false
-SKIP_CERT_IMPORT=false
-
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --skip-init)
-            SKIP_TOKEN_INIT=true
-            shift
-            ;;
-        --skip-import)
-            SKIP_CERT_IMPORT=true
-            shift
-            ;;
         --cert-dir)
             CERT_DIR="$2"
             shift 2
@@ -44,8 +32,6 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --skip-init        Skip token initialization (assume already initialized)"
-            echo "  --skip-import      Skip certificate import (only initialize token)"
             echo "  --cert-dir DIR     Certificate directory (default: /opt/certs)"
             echo "  --help             Show this help message"
             exit 0
@@ -64,44 +50,39 @@ echo "[setup-pkcs11] Token: $TOKEN_LABEL, Cert dir: $CERT_DIR"
 # STEP 1: Initialize PKCS#11 Token
 ##########################################################################
 
-if [ "$SKIP_TOKEN_INIT" = false ]; then
-    echo ""
-    echo "[setup-pkcs11] === Initializing PKCS#11 token ==="
-    
-    # Ensure token directory exists
-    mkdir -p "$TOKEN_DIR"
-    chmod 755 "$TOKEN_DIR"
-    
-    # Check if token already exists
-    if softhsm2-util --show-slots 2>/dev/null | grep -q "$TOKEN_LABEL"; then
-        echo "[setup-pkcs11] Token '$TOKEN_LABEL' already exists"
-    else
-        echo "[setup-pkcs11] Creating token '$TOKEN_LABEL'..."
-        if softhsm2-util --init-token \
-            --free \
-            --label "$TOKEN_LABEL" \
-            --so-pin "$SO_PIN" \
-            --pin "$USER_PIN"; then
-            echo "[setup-pkcs11] ✓ Token initialized successfully"
-        else
-            echo "[setup-pkcs11] ERROR: Failed to initialize token"
-            exit 1
-        fi
-    fi
-    
-    # Display token information
-    echo "[setup-pkcs11] Token details:"
-    softhsm2-util --show-slots
+echo ""
+echo "[setup-pkcs11] === Initializing PKCS#11 token ==="
+
+# Ensure token directory exists
+mkdir -p "$TOKEN_DIR"
+chmod 755 "$TOKEN_DIR"
+
+# Check if token already exists
+if softhsm2-util --show-slots 2>/dev/null | grep -q "$TOKEN_LABEL"; then
+    echo "[setup-pkcs11] Token '$TOKEN_LABEL' already exists"
 else
-    echo "[setup-pkcs11] Skipping token initialization (--skip-init)"
+    echo "[setup-pkcs11] Creating token '$TOKEN_LABEL'..."
+    if softhsm2-util --init-token \
+        --free \
+        --label "$TOKEN_LABEL" \
+        --so-pin "$SO_PIN" \
+        --pin "$USER_PIN"; then
+        echo "[setup-pkcs11] ✓ Token initialized successfully"
+    else
+        echo "[setup-pkcs11] ERROR: Failed to initialize token"
+        exit 1
+    fi
 fi
+
+# Display token information
+echo "[setup-pkcs11] Token details:"
+softhsm2-util --show-slots
 
 ##########################################################################
 # STEP 2: Import Certificates to PKCS#11
 ##########################################################################
 
-if [ "$SKIP_CERT_IMPORT" = false ]; then
-    echo ""
+echo ""
     echo "[setup-pkcs11] === Importing certificates to PKCS#11 ==="
     
     # Verify PKCS#11 module exists
@@ -114,7 +95,7 @@ if [ "$SKIP_CERT_IMPORT" = false ]; then
     SLOT=$(softhsm2-util --show-slots | grep -B 20 "Label:.*$TOKEN_LABEL" | grep "^Slot " | head -1 | awk '{print $2}')
     if [ -z "$SLOT" ]; then
         echo "[setup-pkcs11] ERROR: Token '$TOKEN_LABEL' not found"
-        echo "[setup-pkcs11] Run without --skip-init to initialize the token first"
+        echo "[setup-pkcs11] This should not happen - token was just initialized"
         exit 1
     fi
     
@@ -230,9 +211,6 @@ if [ "$SKIP_CERT_IMPORT" = false ]; then
         pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects | \
             grep -E "(Certificate Object|Private Key Object|Public Key Object|label:|ID:)" || true
     fi
-else
-    echo "[setup-pkcs11] Skipping certificate import (--skip-import)"
-fi
 
 echo ""
 echo "[setup-pkcs11] ✓ PKCS#11 setup complete"
