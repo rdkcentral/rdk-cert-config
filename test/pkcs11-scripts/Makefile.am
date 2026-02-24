@@ -22,10 +22,6 @@ pkcs11scripts_SCRIPTS = \
     setup-pkcs11-openssl.sh
 
 # Install SoftHSM2 configuration file
-    init-pkcs11-tokens.sh \
-    import-certs-to-pkcs11.sh
-
-# Install SoftHSM2 configuration file
 pkcs11scripts_DATA = softhsm2.conf
 
 # Make scripts executable after installation
