@@ -338,7 +338,10 @@ generate_certificates() {
   echo "Generating ${CERT_TYPE} certificate with name '${CERT_NAME}'..."
 
   # Single call to create_leaf_cert.sh with the appropriate options
-  "${SCRIPT_DIR}/create_leaf_cert.sh" --cert-name "${CERT_NAME}" --ca-name "${ICA_NAME}" --type "${CERT_TYPE}" --key-type "${KEY_TYPE}" --key-size "${KEY_SIZE}" --cn "${COMMON_NAME}" $LEAF_CERT_OPTIONS
+  if ! "${SCRIPT_DIR}/create_leaf_cert.sh" --cert-name "${CERT_NAME}" --ca-name "${ICA_NAME}" --type "${CERT_TYPE}" --key-type "${KEY_TYPE}" --key-size "${KEY_SIZE}" --cn "${COMMON_NAME}" $LEAF_CERT_OPTIONS; then
+    echo "✗ ERROR: Certificate generation failed for ${CERT_NAME}"
+    exit 1
+  fi
 
   # Generate reference P12 with sentinel key for PKCS#11 testing (client certificates only)
   # Requires both ENABLE_MTLS and ENABLE_PKCS11 environment variables to be set to 'true'
@@ -349,6 +352,16 @@ generate_certificates() {
       
       echo ""
       echo "Generating reference P12 with sentinel key for PKCS#11 testing..."
+      echo "Looking for client certificate at: $CLIENT_CERT"
+      
+      # List directory contents for debugging
+      if [ -d "${CERT_DIR}/${ICA_NAME}/certs" ]; then
+        echo "Contents of ${CERT_DIR}/${ICA_NAME}/certs:"
+        ls -la "${CERT_DIR}/${ICA_NAME}/certs"
+      else
+        echo "✗ ERROR: Directory ${CERT_DIR}/${ICA_NAME}/certs does not exist"
+        exit 1
+      fi
       
       if [ -f "$CLIENT_CERT" ]; then
         if "${SCRIPT_DIR}/create_reference_p12" "$CLIENT_CERT" "$REFERENCE_P12" "$CERT_PASSWORD"; then
