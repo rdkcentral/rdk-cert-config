@@ -21,28 +21,6 @@ TOKEN_DIR="${TOKEN_DIR:-/var/lib/softhsm/tokens}"
 CERT_DIR="${CERT_DIR:-/opt/certs}"
 PKCS11_MODULE="${PKCS11_MODULE:-/usr/lib/softhsm/libsofthsm2.so}"
 
-# Parse command line arguments
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --cert-dir)
-            CERT_DIR="$2"
-            shift 2
-            ;;
-        --help)
-            echo "Usage: $0 [OPTIONS]"
-            echo ""
-            echo "Options:"
-            echo "  --cert-dir DIR     Certificate directory (default: /opt/certs)"
-            echo "  --help             Show this help message"
-            exit 0
-            ;;
-        *)
-            echo "Unknown option: $1"
-            exit 1
-            ;;
-    esac
-done
-
 echo "[setup-pkcs11] Starting PKCS#11 setup..."
 echo "[setup-pkcs11] Token: $TOKEN_LABEL, Cert dir: $CERT_DIR"
 
