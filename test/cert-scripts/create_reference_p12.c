@@ -53,12 +53,13 @@ static EVP_PKEY* create_sentinel_ec_key(void) {
     
     /* Create BIGNUM with value 0 (zero private key) */
     priv_bn = BN_new();
-    if (!priv_bn || !BN_zero(priv_bn)) {
-        fprintf(stderr, "ERROR: Failed to create zero BIGNUM\n");
+    if (!priv_bn) {
+        fprintf(stderr, "ERROR: Failed to create BIGNUM\n");
         EC_POINT_free(pub_point);
         EC_KEY_free(ec_key);
         return NULL;
     }
+    BN_zero(priv_bn);  /* Set to zero - void in OpenSSL 3.0+ */
     
     /* Set private key to zero (THIS IS THE SENTINEL KEY) */
     if (!EC_KEY_set_private_key(ec_key, priv_bn)) {
