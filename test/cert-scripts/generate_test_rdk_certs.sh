@@ -341,27 +341,26 @@ generate_certificates() {
   "${SCRIPT_DIR}/create_leaf_cert.sh" --cert-name "${CERT_NAME}" --ca-name "${ICA_NAME}" --type "${CERT_TYPE}" --key-type "${KEY_TYPE}" --key-size "${KEY_SIZE}" --cn "${COMMON_NAME}" $LEAF_CERT_OPTIONS
 
   # Generate reference P12 with sentinel key for PKCS#11 testing (client certificates only)
+  # Requires both ENABLE_MTLS and ENABLE_PKCS11 environment variables to be set to 'true'
   if [ "${CERT_TYPE}" = "client" ] && [ -f "${SCRIPT_DIR}/create_reference_p12" ]; then
-    CLIENT_CERT="${CERT_DIR}/${ICA_NAME}/certs/${CERT_NAME}.pem"
-    REFERENCE_P12="${CERT_DIR}/${ICA_NAME}/certs/reference.p12"
-    
-    # Create reference P12 only if both ENABLE_MTLS and ENABLE_PKCS11 are true
     if [ "${ENABLE_MTLS}" = "true" ] && [ "${ENABLE_PKCS11}" = "true" ]; then
+      CLIENT_CERT="${CERT_DIR}/${ICA_NAME}/certs/${CERT_NAME}.pem"
+      REFERENCE_P12="${CERT_DIR}/${ICA_NAME}/certs/reference.p12"
+      
       echo ""
       echo "Generating reference P12 with sentinel key for PKCS#11 testing..."
       
       if [ -f "$CLIENT_CERT" ]; then
         if "${SCRIPT_DIR}/create_reference_p12" "$CLIENT_CERT" "$REFERENCE_P12" "$CERT_PASSWORD"; then
-          echo "✓ Reference P12 created: $REFERENCE_P12 (MTLS + PKCS11 enabled)"
+          echo "✓ Reference P12 created: $REFERENCE_P12"
         else
           echo "✗ ERROR: Reference P12 generation failed (exit code: $?)"
           exit 1
         fi
       else
-        echo "⚠ Skipping reference P12 generation: client certificate not found at $CLIENT_CERT"
+        echo "✗ ERROR: Client certificate not found at $CLIENT_CERT"
+        exit 1
       fi
-    else
-      echo "⚠ Skipping reference P12 generation: ENABLE_MTLS=${ENABLE_MTLS}, ENABLE_PKCS11=${ENABLE_PKCS11} (both must be true)"
     fi
   fi
 }

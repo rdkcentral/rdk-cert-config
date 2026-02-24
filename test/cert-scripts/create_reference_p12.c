@@ -27,7 +27,6 @@ static EVP_PKEY* create_sentinel_ec_key(void) {
     EVP_PKEY *pkey = NULL;
     EC_KEY *ec_key = NULL;
     BIGNUM *priv_bn = NULL;
-    const EC_GROUP *group = NULL;
     EC_POINT *pub_point = NULL;
     
     /* Create EC key with P-256 curve (prime256v1) */
