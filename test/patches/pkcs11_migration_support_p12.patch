@@ -17,7 +17,7 @@ Index: openssl-3.0.5/crypto/evp/p_legacy.c
 +    /* Check if this is a PKCS#11 reference key and load actual key from hardware */
 +    if (is_pkcs11_reference_key(key, PKCS11_KEY_TYPE_EC_KEY)) {
 +        unsigned char key_id = extract_pkcs11_key_id(key);
-+        if (key_id == 0x2c) {
++        if (key_id == 0x02) {
 +           EC_KEY *loaded_key = NULL;
 +           loaded_key = (EC_KEY *)load_pkcs11_private_key((void *)&key, PKCS11_KEY_TYPE_EC_KEY);
 +            if (!loaded_key)
@@ -138,7 +138,7 @@ Index: openssl-3.0.5/crypto/pkcs11_reference_key.c
 +  EVP_PKEY *loaded_key = NULL;
 +  char *pkcs11_uri = NULL;
 +  int ret = 0;
-+  key_id = (key_id == 0x00) ? 0x2c : key_id;
++  key_id = (key_id == 0x00) ? 0x02 : key_id;
 +  pkcs11_uri = OPENSSL_zalloc(PKCS11_URI_MAX_LEN);
 +  if (pkcs11_uri == NULL)
 +       return NULL;
