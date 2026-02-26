@@ -1,3 +1,4 @@
+#!/bin/bash
 # RDK-CERT-CONFIG-ORIGINAL-WORK
 #
 # Copyright (c) 2026 RDK Management
