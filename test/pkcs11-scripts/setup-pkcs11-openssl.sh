@@ -1,7 +1,6 @@
 #!/bin/bash
-# SPDX-License-Identifier: Apache-2.0
-#
 # Copyright 2026 RDK Management
+# SPDX-License-Identifier: Apache-2.0
 #
 # Setup OpenSSL with PKCS#11 patch for mTLS support
 # This script downloads, patches, and installs OpenSSL 3.0.5
