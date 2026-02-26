@@ -35,7 +35,7 @@ CERT_DIR="${CERT_DIR:-/opt/certs}"
 PKCS11_MODULE="${PKCS11_MODULE:-/usr/lib/softhsm/libsofthsm2.so}"
 
 echo "[setup-pkcs11] Starting PKCS#11 setup..."
-echo "[setup-pkcs11] Token: $TOKEN_LABEL, Cert dir: $CERT_DIR"
+echo "[setup-pkcs11] Token Label: $TOKEN_LABEL, Cert Directory: $CERT_DIR"
 
 ##########################################################################
 # STEP 1: Initialize PKCS#11 Token
