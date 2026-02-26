@@ -1,4 +1,4 @@
-# Copyright 2025 Comcast Cable Communications Management, LLC
+# Copyright 2026 RDK Management
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,12 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-#
+# RDK-CERT-CONFIG-ORIGINAL-WORK
 
+if CSPC_L2_TEST
 SUBDIRS = l2-sampleapp
+endif
+
+if TEST_RDK_CERTS
+SUBDIRS = cert-scripts pkcs11-scripts patches
+endif
