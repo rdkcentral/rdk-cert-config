@@ -14,6 +14,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+# Original Work: OpenSSL PKCS#11 patch installation for rdk-cert-config
+#
 
 # Install OpenSSL PKCS#11 patch
 patchesdir = $(datadir)/patches

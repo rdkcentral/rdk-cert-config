@@ -14,6 +14,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+# Original Work: PKCS#11 configuration scripts for rdk-cert-config
+#
 
 # Install PKCS#11 setup scripts
 pkcs11scriptsdir = $(datadir)/pkcs11-scripts

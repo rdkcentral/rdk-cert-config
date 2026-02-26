@@ -16,6 +16,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ##########################################################################
+# Original Work: OpenSSL PKCS#11 patch build system for rdk-cert-config
+# Author: RDK Management
+##########################################################################
 # Setup OpenSSL with PKCS#11 patch for mTLS support
 # This script downloads, patches, and installs OpenSSL 3.0.5
 # Replaces system OpenSSL at runtime when ENABLE_PKCS11=true

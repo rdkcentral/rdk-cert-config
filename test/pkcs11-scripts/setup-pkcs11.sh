@@ -16,6 +16,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ##########################################################################
+# Original Work: PKCS#11 token setup and certificate import for rdk-cert-config
+# Author: RDK Management
+##########################################################################
 # PKCS#11 Token Setup and Certificate Import
 # 
 # This script combines token initialization and certificate import:
