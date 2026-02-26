@@ -134,7 +134,7 @@ static int create_reference_p12(const char *cert_file, const char *p12_file,
     printf("  Certificate: %s\n", cert_file);
     printf("  Output P12:  %s\n", p12_file);
     printf("  Password:    [hidden]\n");
-    printf("  PKCS#11 Key ID: 0x2c (fixed)\n\n");
+    printf("  PKCS#11 Key ID: 0x02 (fixed)\n\n");
     
     /* Load certificate */
     printf("Step 1: Load certificate\n");
@@ -175,7 +175,7 @@ static int create_reference_p12(const char *cert_file, const char *p12_file,
     }
     
     printf("✓ Sentinel key created (32 bytes of zeros)\n");
-    printf("  OpenSSL P12 patch will detect this and use PKCS#11 slot 0x2c\n\n");
+    printf("  OpenSSL P12 patch will detect this and use PKCS#11 slot 0x02\n\n");
     
     /* Create PKCS12 structure */
     printf("Step 3: Create PKCS12 structure\n");
@@ -266,11 +266,11 @@ static int create_reference_p12(const char *cert_file, const char *p12_file,
     
     printf("This P12 file contains:\n");
     printf("  • Real certificate from %s\n", cert_file);
-    printf("  • Sentinel key (32 bytes of zeros) → redirects to PKCS#11 slot 0x2c\n\n");
+    printf("  • Sentinel key (32 bytes of zeros) → redirects to PKCS#11 slot 0x02\n\n");
     
     printf("When used with the PKCS#11 P12 patch, OpenSSL will:\n");
     printf("  1. Detect the sentinel key pattern (all zeros)\n");
-    printf("  2. Load the real private key from PKCS#11 hardware token (slot 0x2c)\n");
+    printf("  2. Load the real private key from PKCS#11 hardware token (slot 0x02)\n");
     printf("  3. Complete mTLS handshake using hardware-backed key\n\n");
     
     ret = 1; /* success */
@@ -300,7 +300,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "  output_p12  - Path to output P12 file\n");
         fprintf(stderr, "  password    - P12 password (default: changeit)\n");
         fprintf(stderr, "\n");
-        fprintf(stderr, "Note: The sentinel key always uses PKCS#11 slot 0x2c (hardcoded)\n");
+        fprintf(stderr, "Note: The sentinel key always uses PKCS#11 slot 0x02 (hardcoded)\n");
         return 1;
     }
     
