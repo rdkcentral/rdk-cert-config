@@ -134,6 +134,11 @@ AC_CHECK_LIB([gtest], [main])
 AC_CHECK_LIB([gmock], [main])
 AC_CHECK_LIB([stdc++], [main])
 
+# Check for OpenSSL libraries (required for test cert generation tools)
+AC_CHECK_LIB([crypto], [EVP_PKEY_new], [OPENSSL_LIBS="-lcrypto"], 
+    [AC_MSG_WARN([OpenSSL libcrypto not found - cert helper tools may not build])])
+AC_SUBST([OPENSSL_LIBS])
+
 # Check for typedefs, structures, and compiler characteristics
 AC_C_INLINE
 AC_HEADER_STDBOOL
@@ -154,7 +159,7 @@ AM_COND_IF([CSPC_RDKCONFIG_SUPPORT_ENABLED],[],[AC_CONFIG_FILES([RdkConfigApi/Ma
 fi
 
 AM_COND_IF([CSPC_L2_TEST],[AC_CONFIG_FILES([test/l2-sampleapp/Makefile])],[])
-AM_COND_IF([TEST_RDK_CERTS],[AC_CONFIG_FILES([test/cert-scripts/Makefile])],[])
+AM_COND_IF([TEST_RDK_CERTS],[AC_CONFIG_FILES([test/cert-scripts/Makefile test/pkcs11-scripts/Makefile test/patches/Makefile])],[])
 
 if test x$GTEST_SUPPORT_ENABLED == xtrue; then
 # Checks for library functions.
