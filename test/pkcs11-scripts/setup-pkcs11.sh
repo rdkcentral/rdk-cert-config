@@ -188,6 +188,32 @@ echo ""
         # Cleanup temp files
         [ "$CLEANUP_TEMP" = true ] && rm -f "$CLIENT_CERT" "$CLIENT_KEY"
         
+        # Import xPKI seed certificate to slot 0x03 (if available)
+        SEED_CERT_DIR="/mnt/L2_CONTAINER_SHARED_VOLUME/shared_certs/client"
+        if [ -f "$SEED_CERT_DIR/seed-cert.pem" ] && [ -f "$SEED_CERT_DIR/seed-cert.key" ]; then
+            echo "[setup-pkcs11] Importing xPKI seed certificate to slot 0x03..."
+            
+            pkcs11-tool --module "$PKCS11_MODULE" \
+                --slot "$SLOT" \
+                --login --pin "$USER_PIN" \
+                --write-object "$SEED_CERT_DIR/seed-cert.pem" \
+                --type cert \
+                --id 03 \
+                --label "xpki-seed" 2>&1 | grep -v "error:" || echo "  (may already exist)"
+            
+            pkcs11-tool --module "$PKCS11_MODULE" \
+                --slot "$SLOT" \
+                --login --pin "$USER_PIN" \
+                --write-object "$SEED_CERT_DIR/seed-cert.key" \
+                --type privkey \
+                --id 03 \
+                --label "xpki-seed-key" 2>&1 | grep -v "error:" || echo "  (may already exist)"
+            
+            echo "[setup-pkcs11] ✓ xPKI seed certificate imported to slot 0x03"
+        else
+            echo "[setup-pkcs11] ⚠ xPKI seed certificate not found, skipping slot 0x03"
+        fi
+        
         # List imported objects
         echo ""
         echo "[setup-pkcs11] Imported objects:"
@@ -266,14 +292,21 @@ kdftype=ecc
 hrotconfig="/etc/ssl/certsel/pkcs11/hrothardware.cfg"
 HROTEOF
 
-cat > /etc/ssl/certsel/pkcs11/hrothardware.cfg << 'HWEOF'
-MODULE_PATH=/usr/lib/softhsm/libsofthsm2.so
-TOKEN_LABEL=RDK_TOKEN
-PIN=1234
-SLOT_ID=0x02
+cat > /etc/ssl/certsel/pkcs11/hrothardware.cfg << HWEOF
+# PKCS#11 Slot Allocation for CI Environment:
+#   0x01: mTLS client cert (rdkclient)
+#   0x02: mTLS P12 keys (rdkclient-p12)
+#   0x03: xPKI seed certificate (xpki-seed)
+#   0x04: xPKI operational certificate (auto-generated)
+
+slotid=${SLOT}
+SEED_CERT_ID=3
+OPC_PRIV_ID=4
 HWEOF
 
-echo "[setup-pkcs11] ✓ hrot configuration created with slot 0x02"
+echo "[setup-pkcs11] ✓ hrot configuration created:"
+echo "[setup-pkcs11]   • Seed cert at slot 0x03"
+echo "[setup-pkcs11]   • Operational cert at slot 0x04"
 
 echo ""
 echo "[setup-pkcs11] ✓ PKCS#11 setup complete"
