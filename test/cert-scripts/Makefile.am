@@ -20,6 +20,7 @@ certscripts_SCRIPTS = \
     cert_utils.sh \
     create_ca.sh \
     create_leaf_cert.sh \
+    cross_sign_roots.sh \
     generate_test_rdk_certs.sh
 
 # Distribute source files with the tarball

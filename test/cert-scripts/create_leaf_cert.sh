@@ -23,10 +23,11 @@
 # Options:
 #   --cert-name <n>      Name of the certificate to create (required)
 #   --ca-name <n>        Name of the CA to sign with (required)
+#   --cn <COMMON_NAME>      Common Name for certificates
 #   --type <TYPE>           Certificate type: 'server' or 'client' (default: client)
-#   --validity <DAYS>       Validity period in days (default: 365)
+#   --validity <DAYS>       Validity period in days (default: 1)
 #   --key-type <TYPE>       Key type: 'rsa' or 'ecc' (auto-selected based on cert type if not specified)
-#   --key-size <SIZE>       RSA key size in bits (default: 2048) or ECC curve name (default: prime256v1)
+#   --key-size <SIZE>       RSA key size in bits or ECC curve name (default depends on key type: RSA: 2048, ECC: prime256v1)
 #                           Options: prime256v1 (P-256), secp384r1 (P-384), secp521r1 (P-521)
 #   --expired               Generate an expired certificate
 #   --corrupted             Generate a corrupted certificate
@@ -54,13 +55,13 @@ get_ca_path() {
   else
     # Try to find CA by checking for cert file
     local found=false
-    for dir in $(find "${CERT_DIR}" -type d -name "${name}" 2>/dev/null); do
+    while IFS= read -r -d '' dir; do
       if [ -f "${dir}/certs/${name}.pem" ]; then
         path="${dir}"
         found=true
         break
       fi
-    done
+    done < <(find "${CERT_DIR}" -type d -name "${name}" -print0 2>/dev/null)
 
     # No valid path found, but directory exists at root level, try that as a fallback
     if [ "${found}" != "true" ] && [ -d "${CERT_DIR}/${name}" ]; then
@@ -85,8 +86,7 @@ CERT_NAME=""
 CA_NAME=""
 PARENT_CA=""  # Will be determined later if needed
 CERT_TYPE="client"
-KEY_TYPE="ecc"  # Default to ECC
-KEY_SIZE="prime256v1"  # Default ECC curve or RSA key size
+KEY_TYPE=""     # Auto-selected based on --type when not specified (server→RSA, client→ECC)
 VALIDITY=1
 FAILURE_MODE=""
 CERT_PASSWORD="changeit"
@@ -206,6 +206,27 @@ parse_args() {
     echo_a "Error: Common Name is required (--cn)"
     exit 1
   fi
+
+  # Auto-select key type based on cert type if not explicitly specified
+  if [ -z "$KEY_TYPE" ]; then
+    if [ "$CERT_TYPE" = "server" ]; then
+      KEY_TYPE="rsa"
+    else
+      KEY_TYPE="ecc"
+    fi
+    echo_t "Auto-selected key type: ${KEY_TYPE} (based on --type ${CERT_TYPE})"
+  fi
+
+  if [ -z "$KEY_SIZE" ]; then
+      if [ "$KEY_TYPE" == "ecc" ]; then
+          KEY_SIZE="prime256v1"   # Default ECC curve
+      elif [ "$KEY_TYPE" == "rsa" ]; then
+          KEY_SIZE="2048"         # Default RSA key size
+      else
+          echo_a "Error: Invalid key type"
+          exit 1
+      fi
+  fi
 }
 
 show_help() {
@@ -219,9 +240,9 @@ Options:
   --ca-name <n>        Name of the CA to sign with (required)
   --cn <COMMON_NAME>      Common Name for certificate (required for server certificates)
   --type <TYPE>           Certificate type: 'server' or 'client' (default: client)
-  --validity <DAYS>       Validity period in days (default: 365)
-  --key-type <TYPE>       Key type: 'rsa' or 'ecc' (default: ecc)
-  --key-size <SIZE>       RSA key size in bits or ECC curve name (default: prime256v1)
+  --validity <DAYS>       Validity period in days (default: 1)
+  --key-type <TYPE>       Key type: 'rsa' or 'ecc' (auto-selected: server→RSA, client→ECC)
+  --key-size <SIZE>       RSA key size in bits or ECC curve name (default depends on key type: RSA: 2048, ECC: prime256v1)
   --expired               Generate an expired certificate
   --corrupted             Generate a corrupted certificate
   --revoked               Generate a revoked certificate
@@ -236,7 +257,7 @@ Examples:
   $0 --cert-name "client-cert" --ca-name "Intermediate-CA"
 
   # Create a server certificate
-  $0 --cert-name "server-cert" --ca-name "Intermediate-CA" --type server
+  $0 --cert-name "server-cert" --ca-name "Intermediate-CA" --type server --cn "example.com"
 
   # Create an expired client certificate
   $0 --cert-name "expired-client-cert" --ca-name "Intermediate-CA" --expired
