@@ -210,6 +210,32 @@ echo ""
                 --label "xpki-seed-key" 2>&1 | grep -v "error:" || echo "  (may already exist)"
             
             echo "[setup-pkcs11] ✓ xPKI seed certificate imported to slot 0x03"
+            
+            # Create pkcs11seedref.pk12 (production equivalent) for libcertifier
+            # This file is what libcertifier expects as input_p12_path parameter
+            mkdir -p /opt/certs
+            echo "[setup-pkcs11] DEBUG: Creating /opt/certs/pkcs11seedref.pk12 (mimics production)..."
+            echo "[setup-pkcs11] DEBUG: Seed cert path: $SEED_CERT_DIR/seed-cert.pem"
+            echo "[setup-pkcs11] DEBUG: Seed key path: $SEED_CERT_DIR/seed-cert.key"
+            openssl pkcs12 -export \
+                -in "$SEED_CERT_DIR/seed-cert.pem" \
+                -inkey "$SEED_CERT_DIR/seed-cert.key" \
+                -out /opt/certs/pkcs11seedref.pk12 \
+                -passout pass:changeit \
+                -name "pkcs11-seed"
+            
+            echo "[setup-pkcs11] DEBUG: P12 creation command completed"
+            if [ -f /opt/certs/pkcs11seedref.pk12 ]; then
+                echo "[setup-pkcs11] ✓ /opt/certs/pkcs11seedref.pk12 created"
+                echo "[setup-pkcs11] DEBUG: P12 file details:"
+                ls -lh /opt/certs/pkcs11seedref.pk12
+                echo "[setup-pkcs11] DEBUG: P12 file verification:"
+                openssl pkcs12 -in /opt/certs/pkcs11seedref.pk12 -passin pass:changeit -noout -info 2>&1 || echo "  (verification may fail, but file exists)"
+                echo "[setup-pkcs11]   This file mimics production's pre-provisioned seed P12"
+            else
+                echo "[setup-pkcs11] ERROR: Failed to create /opt/certs/pkcs11seedref.pk12"
+                exit 1
+            fi
         else
             echo "[setup-pkcs11] ⚠ xPKI seed certificate not found, skipping slot 0x03"
         fi
