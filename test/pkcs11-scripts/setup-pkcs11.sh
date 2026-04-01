@@ -352,7 +352,56 @@ else
 fi
 
 ##########################################################################
-# STEP 4: Create hrot.properties for CertSelector
+# STEP 4: Create libcertifier Configuration
+##########################################################################
+
+echo ""
+echo "[setup-pkcs11] === Creating libcertifier configuration ==="
+
+# Get certifier URL from environment or use default
+CERTIFIER_URL="${CERTIFIER_URL:-https://mockxconf:50055/v1/certifier}"
+
+mkdir -p /etc/certifier
+cat > /etc/certifier/libcertifier.cfg << CERTIFIER_CFG_EOF
+{
+  "libcertifier.certifier.url": "${CERTIFIER_URL}",
+  "libcertifier.ca.info": "/etc/ssl/certs/ca-certificates.crt",
+  "libcertifier.profile.name": "Sky_RDK_Device_Issuing_ECC_ICA",
+  "libcertifier.validity.days": 365,
+  "libcertifier.auth.type": "X509",
+  "libcertifier.ecc.curve.id": "prime256v1",
+  "libcertifier.http.connect.timeout": 15,
+  "libcertifier.http.timeout": 15,
+  "libcertifier.http.trace": 0,
+  "libcertifier.input.p12.path": "seed.p12",
+  "libcertifier.input.p12.password": "changeit",
+  "libcertifier.log.file": "/opt/logs/libcertifier.log",
+  "libcertifier.log.level": 4,
+  "libcertifier.log.max.size": 5000000,
+  "libcertifier.autorenew.interval": 86400,
+  "libcertifier.autorenew.certs.path.list": "~/.libcertifier:~/.libcertifier2",
+  "libcertifier.measure.performance": 0,
+  "libcertifier.source.id": "RDK-COESST11AEI-libcertifier",
+  "libcertifier.certificate.lite": 0,
+  "libcertifier.system.id":"74:06:35:06:DF:6A:ES13SCU2416000C1",
+  "libcertifier.fabric.id":"DDDDDDDDDDDDDDDD",
+  "libcertifier.product.id":"1101",
+  "libcertifier.cn.name":"rdkv.cpe-clnt",
+  "libcertifier.node.id":"CCCCCCCCCCCCCCCC",
+  "libcertifier.ext.key.usage":"critical,clientAuth,serverAuth"
+}
+CERTIFIER_CFG_EOF
+
+if [ -f /etc/certifier/libcertifier.cfg ]; then
+    echo "[setup-pkcs11] ✓ libcertifier configuration created at /etc/certifier/libcertifier.cfg"
+    echo "[setup-pkcs11]   • Certifier URL: ${CERTIFIER_URL}"
+else
+    echo "[setup-pkcs11] ERROR: Failed to create libcertifier configuration"
+    exit 1
+fi
+
+##########################################################################
+# STEP 5: Create hrot.properties for CertSelector
 ##########################################################################
 
 echo ""
