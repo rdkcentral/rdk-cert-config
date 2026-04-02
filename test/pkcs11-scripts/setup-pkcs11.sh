@@ -262,7 +262,8 @@ echo ""
             [ -n "$DEBUG_PKCS11" ] && echo "[setup-pkcs11] DEBUG: Seed cert path: $SEED_CERT_DIR/seed-cert.pem"
             [ -n "$DEBUG_PKCS11" ] && echo "[setup-pkcs11] DEBUG: Seed key path: $SEED_CERT_DIR/seed-cert.key"
             
-            # Set restrictive umask before creating P12 with private key
+            # Save current umask and set restrictive umask before creating P12 with private key
+            OLD_UMASK=$(umask)
             umask 077
             if openssl pkcs12 -export \
                 -in "$SEED_CERT_DIR/seed-cert.pem" \
@@ -284,8 +285,11 @@ echo ""
                 echo "[setup-pkcs11]   This file mimics production's pre-provisioned seed P12"
             else
                 echo "[setup-pkcs11] ERROR: Failed to create /opt/certs/pkcs11seedref.pk12"
+                umask "$OLD_UMASK"  # Restore umask even on failure
                 exit 1
             fi
+            # Restore original umask
+            umask "$OLD_UMASK"
         else
             echo "[setup-pkcs11] ⚠ xPKI seed certificate not found, skipping object ID 0x03"
         fi
