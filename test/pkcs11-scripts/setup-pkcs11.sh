@@ -27,6 +27,12 @@ TOKEN_DIR="${TOKEN_DIR:-/var/lib/softhsm/tokens}"
 CERT_DIR="${CERT_DIR:-/opt/certs}"
 PKCS11_MODULE="${PKCS11_MODULE:-/usr/lib/softhsm/libsofthsm2.so}"
 
+# PKCS#11 Object ID Allocation (configurable)
+MTLS_CERT_ID="${MTLS_CERT_ID:-01}"        # mTLS client certificate
+MTLS_P12_KEY_ID="${MTLS_P12_KEY_ID:-02}"  # mTLS P12 private key (also used by OpenSSL patch for operational cert)
+SEED_CERT_ID="${SEED_CERT_ID:-03}"        # xPKI seed certificate
+OPC_PRIV_ID="${OPC_PRIV_ID:-02}"          # xPKI operational certificate private key (matches OpenSSL patch)
+
 echo "[setup-pkcs11] Starting PKCS#11 setup..."
 echo "[setup-pkcs11] Token Label: $TOKEN_LABEL, Cert Directory: $CERT_DIR"
 
@@ -117,15 +123,15 @@ echo ""
     fi
     
     if [ -n "$CLIENT_CERT" ] && [ -f "$CLIENT_CERT" ]; then
-        # Import with object ID 0x01 (standard mTLS)
-        echo "[setup-pkcs11] Importing client certificate (object ID 0x01) to slot $SLOT..."
+        # Import with object ID 0x${MTLS_CERT_ID} (standard mTLS)
+        echo "[setup-pkcs11] Importing client certificate (object ID 0x${MTLS_CERT_ID}) to slot $SLOT..."
         
         if ! pkcs11-tool --module "$PKCS11_MODULE" \
             --slot "$SLOT" \
             --login --pin "$USER_PIN" \
             --write-object "$CLIENT_CERT" \
             --type cert \
-            --id 01 \
+            --id $MTLS_CERT_ID \
             --label "rdkclient" 2>&1; then
             if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: 01"; then
                 echo "  (object with ID 01 already exists)"
@@ -140,7 +146,7 @@ echo ""
             --login --pin "$USER_PIN" \
             --write-object "$CLIENT_KEY" \
             --type privkey \
-            --id 01 \
+            --id $MTLS_CERT_ID \
             --label "rdkclient-key" 2>&1; then
             if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: 01"; then
                 echo "  (object with ID 01 already exists)"
@@ -179,7 +185,7 @@ echo ""
                 --login --pin "$USER_PIN" \
                 --write-object "$CLIENT_KEY" \
                 --type privkey \
-                --id 02 \
+                --id $MTLS_P12_KEY_ID \
                 --extractable \
                 --label "rdkclient-p12-key" 2>&1; then
                 if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: 02"; then
@@ -196,12 +202,12 @@ echo ""
                 --login --pin "$USER_PIN" \
                 --write-object /tmp/client-pubkey.der \
                 --type pubkey \
-                --id 02 \
+                --id $MTLS_P12_KEY_ID \
                 --label "rdkclient-p12-pubkey" 2>&1; then
-                if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: 02"; then
-                    echo "  (object with ID 02 already exists)"
+                if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: $MTLS_P12_KEY_ID"; then
+                    echo "  (object with ID $MTLS_P12_KEY_ID already exists)"
                 else
-                    echo "[setup-pkcs11] ERROR: Failed to import public key to object ID 02"
+                    echo "[setup-pkcs11] ERROR: Failed to import public key to object ID $MTLS_P12_KEY_ID"
                     exit 1
                 fi
             fi
@@ -227,10 +233,10 @@ echo ""
                 --login --pin "$USER_PIN" \
                 --write-object "$SEED_CERT_DIR/seed-cert.pem" \
                 --type cert \
-                --id 03 \
+                --id $SEED_CERT_ID \
                 --label "xpki-seed" 2>&1; then
-                if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: 03"; then
-                    echo "  (object with ID 03 already exists)"
+                if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: $SEED_CERT_ID"; then
+                    echo "  (object with ID $SEED_CERT_ID already exists)"
                 else
                     echo "[setup-pkcs11] ERROR: Failed to import xPKI seed certificate"
                     exit 1
@@ -242,11 +248,11 @@ echo ""
                 --login --pin "$USER_PIN" \
                 --write-object "$SEED_CERT_DIR/seed-cert.key" \
                 --type privkey \
-                --id 03 \
+                --id $SEED_CERT_ID \
                 --extractable \
                 --label "xpki-seed-key" 2>&1; then
-                if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: 03"; then
-                    echo "  (object with ID 03 already exists)"
+                if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: $SEED_CERT_ID"; then
+                    echo "  (object with ID $SEED_CERT_ID already exists)"
                 else
                     echo "[setup-pkcs11] ERROR: Failed to import xPKI seed private key"
                     exit 1
@@ -370,7 +376,7 @@ cat > /etc/certifier/libcertifier.cfg << CERTIFIER_CFG_EOF
 {
   "libcertifier.certifier.url": "${CERTIFIER_URL}",
   "libcertifier.ca.info": "/etc/ssl/certs/ca-certificates.crt",
-  "libcertifier.profile.name": "Sky_RDK_Device_Issuing_ECC_ICA",
+  "libcertifier.profile.name": "RDK_Device_Issuing_ECC_ICA",
   "libcertifier.validity.days": 365,
   "libcertifier.auth.type": "X509",
   "libcertifier.ecc.curve.id": "prime256v1",
@@ -385,12 +391,12 @@ cat > /etc/certifier/libcertifier.cfg << CERTIFIER_CFG_EOF
   "libcertifier.autorenew.interval": 86400,
   "libcertifier.autorenew.certs.path.list": "~/.libcertifier:~/.libcertifier2",
   "libcertifier.measure.performance": 0,
-  "libcertifier.source.id": "RDK-COESST11AEI-libcertifier",
+  "libcertifier.source.id": "RDK-GENERIC-libcertifier",
   "libcertifier.certificate.lite": 0,
   "libcertifier.system.id":"74:06:35:06:DF:6A:ES13SCU2416000C1",
   "libcertifier.fabric.id":"DDDDDDDDDDDDDDDD",
   "libcertifier.product.id":"1101",
-  "libcertifier.cn.name":"rdkv.cpe-clnt",
+  "libcertifier.cn.name":"rdk.device",
   "libcertifier.node.id":"CCCCCCCCCCCCCCCC",
   "libcertifier.ext.key.usage":"critical,clientAuth,serverAuth"
 }
@@ -423,20 +429,20 @@ HROTEOF
 
 cat > /etc/ssl/certsel/pkcs11/hrothardware.cfg << HWEOF
 # PKCS#11 Object ID Allocation for CI Environment (in token slot ${SLOT}):
-#   Object ID 0x01: mTLS client cert (rdkclient)
-#   Object ID 0x02: mTLS P12 keys (rdkclient-p12)
-#   Object ID 0x03: xPKI seed certificate (xpki-seed)
-#   Object ID 0x04: xPKI operational certificate (auto-generated)
+#   Object ID 0x${MTLS_CERT_ID}: mTLS client cert (rdkclient)
+#   Object ID 0x${MTLS_P12_KEY_ID}: mTLS P12 keys (rdkclient-p12) + xPKI operational key (OpenSSL patch)
+#   Object ID 0x${SEED_CERT_ID}: xPKI seed certificate (xpki-seed)
+#   Note: OPC_PRIV_ID=2 matches MTLS_P12_KEY_ID because OpenSSL patch hardcodes ID 02
 
 slotid=${SLOT}
-SEED_CERT_ID=3
-OPC_PRIV_ID=4
+SEED_CERT_ID=${SEED_CERT_ID}
+OPC_PRIV_ID=${OPC_PRIV_ID}
 HWEOF
 
 echo "[setup-pkcs11] ✓ hrot configuration created:"
 echo "[setup-pkcs11]   • Token slot: $SLOT"
-echo "[setup-pkcs11]   • Seed cert object ID: 0x03"
-echo "[setup-pkcs11]   • Operational cert object ID: 0x04"
+echo "[setup-pkcs11]   • Seed cert object ID: 0x$SEED_CERT_ID"
+echo "[setup-pkcs11]   • Operational cert object ID: 0x$OPC_PRIV_ID"
 
 echo ""
 echo "[setup-pkcs11] ✓ PKCS#11 setup complete"
