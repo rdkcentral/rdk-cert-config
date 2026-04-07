@@ -133,8 +133,8 @@ echo ""
             --type cert \
             --id $MTLS_CERT_ID \
             --label "rdkclient" 2>&1; then
-            if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: 01"; then
-                echo "  (object with ID 01 already exists)"
+            if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: $MTLS_CERT_ID"; then
+                echo "  (object with ID $MTLS_CERT_ID already exists)"
             else
                 echo "[setup-pkcs11] ERROR: Failed to import client certificate"
                 exit 1
@@ -148,15 +148,15 @@ echo ""
             --type privkey \
             --id $MTLS_CERT_ID \
             --label "rdkclient-key" 2>&1; then
-            if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: 01"; then
-                echo "  (object with ID 01 already exists)"
+            if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: $MTLS_CERT_ID"; then
+                echo "  (object with ID $MTLS_CERT_ID already exists)"
             else
                 echo "[setup-pkcs11] ERROR: Failed to import client private key"
                 exit 1
             fi
         fi
         
-        echo "[setup-pkcs11] ✓ Client certificate imported (object ID 0x01 in slot $SLOT)"
+        echo "[setup-pkcs11] ✓ Client certificate imported (object ID 0x$MTLS_CERT_ID in slot $SLOT)"
         
         # Import with object ID 0x02 (PKCS#11 patch testing - production mode)
         if [ -f "$CERT_DIR/reference.p12" ]; then
@@ -188,10 +188,10 @@ echo ""
                 --id $MTLS_P12_KEY_ID \
                 --extractable \
                 --label "rdkclient-p12-key" 2>&1; then
-                if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: 02"; then
-                    echo "  (object with ID 02 already exists)"
+                if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: $MTLS_P12_KEY_ID"; then
+                    echo "  (object with ID $MTLS_P12_KEY_ID already exists)"
                 else
-                    echo "[setup-pkcs11] ERROR: Failed to import private key to object ID 02"
+                    echo "[setup-pkcs11] ERROR: Failed to import private key to object ID $MTLS_P12_KEY_ID"
                     exit 1
                 fi
             fi
@@ -212,10 +212,10 @@ echo ""
                 fi
             fi
             
-            echo "[setup-pkcs11] ✓ Keys imported (object ID 0x02 in slot $SLOT - PRODUCTION MODE)"
-            echo "[setup-pkcs11]   • Private key at ID 0x02: YES"
-            echo "[setup-pkcs11]   • Public key at ID 0x02:  YES"
-            echo "[setup-pkcs11]   • Certificate at ID 0x02: NO (from P12 file)"
+            echo "[setup-pkcs11] ✓ Keys imported (object ID 0x$MTLS_P12_KEY_ID in slot $SLOT - PRODUCTION MODE)"
+            echo "[setup-pkcs11]   • Private key at ID 0x$MTLS_P12_KEY_ID: YES"
+            echo "[setup-pkcs11]   • Public key at ID 0x$MTLS_P12_KEY_ID:  YES"
+            echo "[setup-pkcs11]   • Certificate at ID 0x$MTLS_P12_KEY_ID: NO (from P12 file)"
             
             rm -f /tmp/client-pubkey.pem /tmp/client-pubkey.der
         fi
@@ -371,10 +371,14 @@ echo "[setup-pkcs11] === Creating libcertifier configuration ==="
 # Get certifier URL from environment or use default
 CERTIFIER_URL="${CERTIFIER_URL:-https://mockxconf:50055/v1/certifier}"
 
+# Escape URL for safe JSON insertion (prevent injection)
+CERTIFIER_URL_ESCAPED="${CERTIFIER_URL//\\/\\\\}"  # Escape backslashes
+CERTIFIER_URL_ESCAPED="${CERTIFIER_URL_ESCAPED//\"/\\\"}"  # Escape quotes
+
 mkdir -p /etc/certifier
 cat > /etc/certifier/libcertifier.cfg << CERTIFIER_CFG_EOF
 {
-  "libcertifier.certifier.url": "${CERTIFIER_URL}",
+  "libcertifier.certifier.url": "${CERTIFIER_URL_ESCAPED}",
   "libcertifier.ca.info": "/etc/ssl/certs/ca-certificates.crt",
   "libcertifier.profile.name": "RDK_Device_Issuing_ECC_ICA",
   "libcertifier.validity.days": 365,
