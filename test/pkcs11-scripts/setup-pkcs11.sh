@@ -27,6 +27,12 @@ TOKEN_DIR="${TOKEN_DIR:-/var/lib/softhsm/tokens}"
 CERT_DIR="${CERT_DIR:-/opt/certs}"
 PKCS11_MODULE="${PKCS11_MODULE:-/usr/lib/softhsm/libsofthsm2.so}"
 
+# PKCS#11 Object ID Allocation (configurable)
+MTLS_CERT_ID="${MTLS_CERT_ID:-01}"        # mTLS client certificate
+MTLS_P12_KEY_ID="${MTLS_P12_KEY_ID:-02}"  # mTLS P12 private key (also used by OpenSSL patch for operational cert)
+SEED_CERT_ID="${SEED_CERT_ID:-03}"        # xPKI seed certificate
+OPC_PRIV_ID="${OPC_PRIV_ID:-02}"          # xPKI operational certificate private key (matches OpenSSL patch)
+
 echo "[setup-pkcs11] Starting PKCS#11 setup..."
 echo "[setup-pkcs11] Token Label: $TOKEN_LABEL, Cert Directory: $CERT_DIR"
 
@@ -117,30 +123,44 @@ echo ""
     fi
     
     if [ -n "$CLIENT_CERT" ] && [ -f "$CLIENT_CERT" ]; then
-        # Import to slot 0x01 (standard mTLS)
-        echo "[setup-pkcs11] Importing client certificate to slot 0x01..."
+        # Import with object ID 0x${MTLS_CERT_ID} (standard mTLS)
+        echo "[setup-pkcs11] Importing client certificate (object ID 0x${MTLS_CERT_ID}) to slot $SLOT..."
         
-        pkcs11-tool --module "$PKCS11_MODULE" \
+        if ! pkcs11-tool --module "$PKCS11_MODULE" \
             --slot "$SLOT" \
             --login --pin "$USER_PIN" \
             --write-object "$CLIENT_CERT" \
             --type cert \
-            --id 01 \
-            --label "rdkclient" 2>&1 | grep -v "error:" || echo "  (may already exist)"
+            --id $MTLS_CERT_ID \
+            --label "rdkclient" 2>&1; then
+            if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: $MTLS_CERT_ID"; then
+                echo "  (object with ID $MTLS_CERT_ID already exists)"
+            else
+                echo "[setup-pkcs11] ERROR: Failed to import client certificate"
+                exit 1
+            fi
+        fi
         
-        pkcs11-tool --module "$PKCS11_MODULE" \
+        if ! pkcs11-tool --module "$PKCS11_MODULE" \
             --slot "$SLOT" \
             --login --pin "$USER_PIN" \
             --write-object "$CLIENT_KEY" \
             --type privkey \
-            --id 01 \
-            --label "rdkclient-key" 2>&1 | grep -v "error:" || echo "  (may already exist)"
+            --id $MTLS_CERT_ID \
+            --label "rdkclient-key" 2>&1; then
+            if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: $MTLS_CERT_ID"; then
+                echo "  (object with ID $MTLS_CERT_ID already exists)"
+            else
+                echo "[setup-pkcs11] ERROR: Failed to import client private key"
+                exit 1
+            fi
+        fi
         
-        echo "[setup-pkcs11] ✓ Client certificate imported to slot 0x01"
+        echo "[setup-pkcs11] ✓ Client certificate imported (object ID 0x$MTLS_CERT_ID in slot $SLOT)"
         
-        # Import to slot 0x02 (PKCS#11 patch testing - production mode)
+        # Import with object ID 0x02 (PKCS#11 patch testing - production mode)
         if [ -f "$CERT_DIR/reference.p12" ]; then
-            echo "[setup-pkcs11] Importing keys to slot 0x02 (PRODUCTION MODE - keys only)..."
+            echo "[setup-pkcs11] Importing keys (object ID 0x02) to slot $SLOT (PRODUCTION MODE - keys only)..."
             
             # Extract public key from certificate
             openssl x509 -in "$CLIENT_CERT" -pubkey -noout > /tmp/client-pubkey.pem
@@ -159,34 +179,126 @@ echo ""
             
             echo "[setup-pkcs11]   Key type: $KEY_TYPE"
             
-            # Import private key
-            pkcs11-tool --module "$PKCS11_MODULE" \
+            # Import private key (with --extractable for USE_ACTUAL_KEYS support)
+            if ! pkcs11-tool --module "$PKCS11_MODULE" \
                 --slot "$SLOT" \
                 --login --pin "$USER_PIN" \
                 --write-object "$CLIENT_KEY" \
                 --type privkey \
-                --id 02 \
-                --label "rdkclient-p12-key" 2>&1 | grep -v "error:" || echo "  (may already exist)"
+                --id $MTLS_P12_KEY_ID \
+                --extractable \
+                --label "rdkclient-p12-key" 2>&1; then
+                if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: $MTLS_P12_KEY_ID"; then
+                    echo "  (object with ID $MTLS_P12_KEY_ID already exists)"
+                else
+                    echo "[setup-pkcs11] ERROR: Failed to import private key to object ID $MTLS_P12_KEY_ID"
+                    exit 1
+                fi
+            fi
             
             # Import public key
-            pkcs11-tool --module "$PKCS11_MODULE" \
+            if ! pkcs11-tool --module "$PKCS11_MODULE" \
                 --slot "$SLOT" \
                 --login --pin "$USER_PIN" \
                 --write-object /tmp/client-pubkey.der \
                 --type pubkey \
-                --id 02 \
-                --label "rdkclient-p12-pubkey" 2>&1 | grep -v "error:" || echo "  (may already exist)"
+                --id $MTLS_P12_KEY_ID \
+                --label "rdkclient-p12-pubkey" 2>&1; then
+                if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: $MTLS_P12_KEY_ID"; then
+                    echo "  (object with ID $MTLS_P12_KEY_ID already exists)"
+                else
+                    echo "[setup-pkcs11] ERROR: Failed to import public key to object ID $MTLS_P12_KEY_ID"
+                    exit 1
+                fi
+            fi
             
-            echo "[setup-pkcs11] ✓ Keys imported to slot 0x02 (PRODUCTION MODE)"
-            echo "[setup-pkcs11]   • Private key at ID 0x02: YES"
-            echo "[setup-pkcs11]   • Public key at ID 0x02:  YES"
-            echo "[setup-pkcs11]   • Certificate at ID 0x02: NO (from P12 file)"
+            echo "[setup-pkcs11] ✓ Keys imported (object ID 0x$MTLS_P12_KEY_ID in slot $SLOT - PRODUCTION MODE)"
+            echo "[setup-pkcs11]   • Private key at ID 0x$MTLS_P12_KEY_ID: YES"
+            echo "[setup-pkcs11]   • Public key at ID 0x$MTLS_P12_KEY_ID:  YES"
+            echo "[setup-pkcs11]   • Certificate at ID 0x$MTLS_P12_KEY_ID: NO (from P12 file)"
             
             rm -f /tmp/client-pubkey.pem /tmp/client-pubkey.der
         fi
         
         # Cleanup temp files
         [ "$CLEANUP_TEMP" = true ] && rm -f "$CLIENT_CERT" "$CLIENT_KEY"
+        
+        # Import xPKI seed certificate with object ID 0x03 (if available)
+        SEED_CERT_DIR="/mnt/L2_CONTAINER_SHARED_VOLUME/shared_certs/client"
+        if [ -f "$SEED_CERT_DIR/seed-cert.pem" ] && [ -f "$SEED_CERT_DIR/seed-cert.key" ]; then
+            echo "[setup-pkcs11] Importing xPKI seed certificate (object ID 0x03) to slot $SLOT..."
+            
+            if ! pkcs11-tool --module "$PKCS11_MODULE" \
+                --slot "$SLOT" \
+                --login --pin "$USER_PIN" \
+                --write-object "$SEED_CERT_DIR/seed-cert.pem" \
+                --type cert \
+                --id $SEED_CERT_ID \
+                --label "xpki-seed" 2>&1; then
+                if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: $SEED_CERT_ID"; then
+                    echo "  (object with ID $SEED_CERT_ID already exists)"
+                else
+                    echo "[setup-pkcs11] ERROR: Failed to import xPKI seed certificate"
+                    exit 1
+                fi
+            fi
+            
+            if ! pkcs11-tool --module "$PKCS11_MODULE" \
+                --slot "$SLOT" \
+                --login --pin "$USER_PIN" \
+                --write-object "$SEED_CERT_DIR/seed-cert.key" \
+                --type privkey \
+                --id $SEED_CERT_ID \
+                --extractable \
+                --label "xpki-seed-key" 2>&1; then
+                if pkcs11-tool --module "$PKCS11_MODULE" --slot "$SLOT" --login --pin "$USER_PIN" --list-objects 2>/dev/null | grep -q "ID: $SEED_CERT_ID"; then
+                    echo "  (object with ID $SEED_CERT_ID already exists)"
+                else
+                    echo "[setup-pkcs11] ERROR: Failed to import xPKI seed private key"
+                    exit 1
+                fi
+            fi
+            
+            echo "[setup-pkcs11] ✓ xPKI seed certificate imported (object ID 0x03 in slot $SLOT)"
+            
+            # Create pkcs11seedref.pk12 (production equivalent) for libcertifier
+            # This file is what libcertifier expects as input_p12_path parameter
+            mkdir -p /opt/certs
+            [ -n "$DEBUG_PKCS11" ] && echo "[setup-pkcs11] DEBUG: Creating /opt/certs/pkcs11seedref.pk12 (mimics production)..."
+            [ -n "$DEBUG_PKCS11" ] && echo "[setup-pkcs11] DEBUG: Seed cert path: $SEED_CERT_DIR/seed-cert.pem"
+            [ -n "$DEBUG_PKCS11" ] && echo "[setup-pkcs11] DEBUG: Seed key path: $SEED_CERT_DIR/seed-cert.key"
+            
+            # Save current umask and set restrictive umask before creating P12 with private key
+            OLD_UMASK=$(umask)
+            umask 077
+            if openssl pkcs12 -export \
+                -in "$SEED_CERT_DIR/seed-cert.pem" \
+                -inkey "$SEED_CERT_DIR/seed-cert.key" \
+                -out /opt/certs/pkcs11seedref.pk12 \
+                -passout pass:changeit \
+                -name "pkcs11-seed" 2>/dev/null; then
+                
+                # Ensure file has restrictive permissions
+                chmod 0600 /opt/certs/pkcs11seedref.pk12
+                echo "[setup-pkcs11] ✓ /opt/certs/pkcs11seedref.pk12 created (permissions: 0600)"
+                
+                if [ -n "$DEBUG_PKCS11" ]; then
+                    echo "[setup-pkcs11] DEBUG: P12 file details:"
+                    ls -lh /opt/certs/pkcs11seedref.pk12
+                    echo "[setup-pkcs11] DEBUG: P12 file verification:"
+                    openssl pkcs12 -in /opt/certs/pkcs11seedref.pk12 -passin pass:changeit -noout -info 2>&1 || echo "  (verification may fail, but file exists)"
+                fi
+                echo "[setup-pkcs11]   This file mimics production's pre-provisioned seed P12"
+            else
+                echo "[setup-pkcs11] ERROR: Failed to create /opt/certs/pkcs11seedref.pk12"
+                umask "$OLD_UMASK"  # Restore umask even on failure
+                exit 1
+            fi
+            # Restore original umask
+            umask "$OLD_UMASK"
+        else
+            echo "[setup-pkcs11] ⚠ xPKI seed certificate not found, skipping object ID 0x03"
+        fi
         
         # List imported objects
         echo ""
@@ -250,7 +362,60 @@ else
 fi
 
 ##########################################################################
-# STEP 4: Create hrot.properties for CertSelector
+# STEP 4: Create libcertifier Configuration
+##########################################################################
+
+echo ""
+echo "[setup-pkcs11] === Creating libcertifier configuration ==="
+
+# Get certifier URL from environment or use default
+CERTIFIER_URL="${CERTIFIER_URL:-https://mockxconf:50055/v1/certifier}"
+
+# Escape URL for safe JSON insertion (prevent injection)
+CERTIFIER_URL_ESCAPED="${CERTIFIER_URL//\\/\\\\}"  # Escape backslashes
+CERTIFIER_URL_ESCAPED="${CERTIFIER_URL_ESCAPED//\"/\\\"}"  # Escape quotes
+
+mkdir -p /etc/certifier
+cat > /etc/certifier/libcertifier.cfg << CERTIFIER_CFG_EOF
+{
+  "libcertifier.certifier.url": "${CERTIFIER_URL_ESCAPED}",
+  "libcertifier.ca.info": "/etc/ssl/certs/ca-certificates.crt",
+  "libcertifier.profile.name": "RDK_Device_Issuing_ECC_ICA",
+  "libcertifier.validity.days": 365,
+  "libcertifier.auth.type": "X509",
+  "libcertifier.ecc.curve.id": "prime256v1",
+  "libcertifier.http.connect.timeout": 15,
+  "libcertifier.http.timeout": 15,
+  "libcertifier.http.trace": 0,
+  "libcertifier.input.p12.path": "seed.p12",
+  "libcertifier.input.p12.password": "changeit",
+  "libcertifier.log.file": "/opt/logs/libcertifier.log",
+  "libcertifier.log.level": 4,
+  "libcertifier.log.max.size": 5000000,
+  "libcertifier.autorenew.interval": 86400,
+  "libcertifier.autorenew.certs.path.list": "~/.libcertifier:~/.libcertifier2",
+  "libcertifier.measure.performance": 0,
+  "libcertifier.source.id": "RDK-GENERIC-libcertifier",
+  "libcertifier.certificate.lite": 0,
+  "libcertifier.system.id":"74:06:35:06:DF:6A:ES13SCU2416000C1",
+  "libcertifier.fabric.id":"DDDDDDDDDDDDDDDD",
+  "libcertifier.product.id":"1101",
+  "libcertifier.cn.name":"rdk.device",
+  "libcertifier.node.id":"CCCCCCCCCCCCCCCC",
+  "libcertifier.ext.key.usage":"critical,clientAuth,serverAuth"
+}
+CERTIFIER_CFG_EOF
+
+if [ -f /etc/certifier/libcertifier.cfg ]; then
+    echo "[setup-pkcs11] ✓ libcertifier configuration created at /etc/certifier/libcertifier.cfg"
+    echo "[setup-pkcs11]   • Certifier URL: ${CERTIFIER_URL}"
+else
+    echo "[setup-pkcs11] ERROR: Failed to create libcertifier configuration"
+    exit 1
+fi
+
+##########################################################################
+# STEP 5: Create hrot.properties for CertSelector
 ##########################################################################
 
 echo ""
@@ -266,14 +431,22 @@ kdftype=ecc
 hrotconfig="/etc/ssl/certsel/pkcs11/hrothardware.cfg"
 HROTEOF
 
-cat > /etc/ssl/certsel/pkcs11/hrothardware.cfg << 'HWEOF'
-MODULE_PATH=/usr/lib/softhsm/libsofthsm2.so
-TOKEN_LABEL=RDK_TOKEN
-PIN=1234
-SLOT_ID=0x02
+cat > /etc/ssl/certsel/pkcs11/hrothardware.cfg << HWEOF
+# PKCS#11 Object ID Allocation for CI Environment (in token slot ${SLOT}):
+#   Object ID 0x${MTLS_CERT_ID}: mTLS client cert (rdkclient)
+#   Object ID 0x${MTLS_P12_KEY_ID}: mTLS P12 keys (rdkclient-p12) + xPKI operational key (OpenSSL patch)
+#   Object ID 0x${SEED_CERT_ID}: xPKI seed certificate (xpki-seed)
+#   Note: OPC_PRIV_ID=2 matches MTLS_P12_KEY_ID because OpenSSL patch hardcodes ID 02
+
+slotid=${SLOT}
+SEED_CERT_ID=${SEED_CERT_ID}
+OPC_PRIV_ID=${OPC_PRIV_ID}
 HWEOF
 
-echo "[setup-pkcs11] ✓ hrot configuration created with slot 0x02"
+echo "[setup-pkcs11] ✓ hrot configuration created:"
+echo "[setup-pkcs11]   • Token slot: $SLOT"
+echo "[setup-pkcs11]   • Seed cert object ID: 0x$SEED_CERT_ID"
+echo "[setup-pkcs11]   • Operational cert object ID: 0x$OPC_PRIV_ID"
 
 echo ""
 echo "[setup-pkcs11] ✓ PKCS#11 setup complete"

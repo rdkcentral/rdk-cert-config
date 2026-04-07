@@ -127,6 +127,9 @@ echo "[setup-pkcs11-openssl] ✓ Library cache updated"
 # OpenSSL looks in ENGINESDIR which is /usr/local/lib/engines-3 on this build
 echo "[setup-pkcs11-openssl] Creating PKCS#11 engine symlink..."
 
+# Ensure the engines directory exists
+mkdir -p /usr/local/lib/engines-3
+
 # Detect architecture and create appropriate symlink in the correct engines directory
 if [ -f "/usr/lib/aarch64-linux-gnu/engines-3/pkcs11.so" ]; then
     ln -sf /usr/lib/aarch64-linux-gnu/engines-3/pkcs11.so /usr/local/lib/engines-3/pkcs11.so
