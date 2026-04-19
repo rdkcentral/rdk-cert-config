@@ -521,10 +521,13 @@ rdkcertselectorRetry_t rdkcertselector_setCurlStatus( rdkcertselector_h thiscert
     // find next cert; need to know if another one is available or not
     rdkcertselectorStatus_t retval = certsel_findNextCert( thiscertsel );
     if ( retval != certselectorOk ) {
-      // if no cert, reset indx to 0; set state to noCert; return no retry
-      EXTRA_DEBUG_LOG( " %s:next cert not found; NO_RETRY\n", __FUNCTION__ );
+      // no more certs available for this attempt; reset index to first cert
+      // so that the next getCert call can re-evaluate all certs from scratch
+      // (dynamic certs may appear, or static certs may be renewed).
+      EXTRA_DEBUG_LOG( " %s:next cert not found; resetting to first cert; NO_RETRY\n", __FUNCTION__ );
       thiscertsel->certIndx = 0;
-      thiscertsel->state = cssNoCert;
+      certsel_findCert( thiscertsel );  // repopulate certUri/certCredRef for index 0
+      thiscertsel->state = cssReadyToGiveCert;
       return NO_RETRY;
     }
 
