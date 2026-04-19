@@ -440,6 +440,14 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
       ERROR_LOG( " %s:INTERNAL ERROR: current stat should not be %lu\n", __FUNCTION__,  thiscertsel->certStat[certIndx] );
     }
     EXTRA_DEBUG_LOG( " %s:returning [%s:%s] index [%u]\n", __FUNCTION__, thiscertsel->certUri, "*****", certIndx );
+  } else {
+    // All certs exhausted within getCert (files missing or unchanged-bad).
+    // Reset index to 0 and repopulate certUri/certCredRef so the next
+    // getCert call can re-evaluate all certs from scratch rather than
+    // hitting the empty certUri guard.
+    EXTRA_DEBUG_LOG( " %s:all certs exhausted, resetting to first cert\n", __FUNCTION__ );
+    thiscertsel->certIndx = 0;
+    certsel_findCert( thiscertsel );
   }
   EXTRA_DEBUG_LOG( " %s:returning %d\n", __FUNCTION__, retval );
   return retval;
