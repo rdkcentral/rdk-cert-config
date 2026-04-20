@@ -733,8 +733,8 @@ static rdkcertselectorStatus_t certsel_findNextCert( rdkcertselector_h thiscerts
   }
   // next cert
   thiscertsel->certIndx++;
-  //thiscertsel->certUri[0] = '\0';
-  //thiscertsel->certCredRef[0] = '\0';
+  thiscertsel->certUri[0] = '\0';
+  thiscertsel->certCredRef[0] = '\0';
 
   // with index increment, find the cert
   return certsel_findCert( thiscertsel );
