@@ -296,11 +296,23 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
     return certselectorBadArgument;
   }
 
+  if( thiscertsel->state == cssNoCert ){
+      thiscertsel->certIndx = 0;
+      ERROR_LOG("Debug : %s: thiscertsel->state : %d \n",__FUNCTION__,thiscertsel->state);
+      rdkcertselectorStatus_t certstat = certsel_findCert( thiscertsel );
+      if ( certstat != certselectorOk ) {
+        ERROR_LOG( " %s:INTERNAL ERROR: cert not found; RETRY_ERROR\n", __FUNCTION__ );
+        thiscertsel->state = cssNoCert;
+        return RETRY_ERROR;
+      }      
+      thiscertsel->state = cssReadyToGiveCert;       
+  }
+      
   if ( thiscertsel->state != cssReadyToGiveCert ) {
     ERROR_LOG( " %s:unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->state, cssReadyToGiveCert );
     return certselectorGeneralFailure;
   }
-
+  ERROR_LOG( "Debug : %s:unexpected state, %d!=%d thiscertsel->certUri : %s, thiscertsel->certCredRef: %s\n", __FUNCTION__, thiscertsel->state, cssReadyToGiveCert, thiscertsel->certUri, thiscertsel->certCredRef );
   char *thisCertUri = thiscertsel->certUri;
   char *thisCertCredRef = thiscertsel->certCredRef;
 
