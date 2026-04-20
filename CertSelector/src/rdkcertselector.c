@@ -440,6 +440,13 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
       ERROR_LOG( " %s:INTERNAL ERROR: current stat should not be %lu\n", __FUNCTION__,  thiscertsel->certStat[certIndx] );
     }
     EXTRA_DEBUG_LOG( " %s:returning [%s:%s] index [%u]\n", __FUNCTION__, thiscertsel->certUri, "*****", certIndx );
+  } else {
+    // All certs exhausted within getCert (files missing or unchanged-bad).
+    // Reset index to 0 and repopulate certUri/certCredRef so the next
+    // getCert call can re-evaluate all certs from scratch rather than
+    // hitting the empty certUri guard.    
+    thiscertsel->certIndx = 0;
+    certsel_findCert( thiscertsel );    
   }
   EXTRA_DEBUG_LOG( " %s:returning %d\n", __FUNCTION__, retval );
   return retval;
@@ -521,10 +528,13 @@ rdkcertselectorRetry_t rdkcertselector_setCurlStatus( rdkcertselector_h thiscert
     // find next cert; need to know if another one is available or not
     rdkcertselectorStatus_t retval = certsel_findNextCert( thiscertsel );
     if ( retval != certselectorOk ) {
-      // if no cert, reset indx to 0; set state to noCert; return no retry
-      EXTRA_DEBUG_LOG( " %s:next cert not found; NO_RETRY\n", __FUNCTION__ );
-      thiscertsel->certIndx = 0;
-      thiscertsel->state = cssNoCert;
+      // no more certs available for this attempt; reset index to first cert
+      // so that the next getCert call can re-evaluate all certs from scratch
+      // (dynamic certs may appear, or static certs may be renewed).
+      EXTRA_DEBUG_LOG( " %s:next cert not found; resetting to first cert; NO_RETRY\n", __FUNCTION__ );
+      thiscertsel->certIndx = 0;      
+      certsel_findCert( thiscertsel );  // repopulate certUri/certCredRef for index 0
+      thiscertsel->state = cssReadyToGiveCert;      
       return NO_RETRY;
     }
 
