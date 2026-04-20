@@ -34,8 +34,8 @@
 #endif
 
 #define ERROR_LOG(...) RDK_LOG(RDK_LOG_ERROR, LOG_LIB, __VA_ARGS__)
-#define DEBUG_LOG(...) RDK_LOG(RDK_LOG_ERROR, LOG_LIB, __VA_ARGS__)
-#define EXTRA_DEBUG_LOG(...) RDK_LOG(RDK_LOG_ERROR, LOG_LIB, __VA_ARGS__)
+#define DEBUG_LOG(...) RDK_LOG(RDK_LOG_INFO, LOG_LIB, __VA_ARGS__)
+#define EXTRA_DEBUG_LOG(...) RDK_LOG(RDK_LOG_DEBUG, LOG_LIB, __VA_ARGS__)
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -296,8 +296,6 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
     return certselectorBadArgument;
   }
 
-  ERROR_LOG( "Debug %s:thiscertsel->certUri : %s, thiscertsel->certCredRef :  %s\n", __FUNCTION__, thiscertsel->certUri, thiscertsel->certCredRef );
-  ERROR_LOG( "Debug %s:unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->state, cssReadyToGiveCert );
   if ( thiscertsel->state != cssReadyToGiveCert ) {
     ERROR_LOG( " %s:unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->state, cssReadyToGiveCert );
     return certselectorGeneralFailure;
@@ -447,10 +445,8 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
     // Reset index to 0 and repopulate certUri/certCredRef so the next
     // getCert call can re-evaluate all certs from scratch rather than
     // hitting the empty certUri guard.    
-    ERROR_LOG( "Debug 2 %s:thiscertsel->certUri : %s, thiscertsel->certCredRef :  %s, unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->certUri, thiscertsel->certCredRef,thiscertsel->state, cssReadyToGiveCert );
-    EXTRA_DEBUG_LOG( " %s:all certs exhausted, resetting to first cert\n", __FUNCTION__ );
     thiscertsel->certIndx = 0;
-    ERROR_LOG( "Debug 3 %s:thiscertsel->certUri : %s, thiscertsel->certCredRef :  %s, unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->certUri, thiscertsel->certCredRef,thiscertsel->state, cssReadyToGiveCert );
+    certsel_findCert( thiscertsel );    
   }
   EXTRA_DEBUG_LOG( " %s:returning %d\n", __FUNCTION__, retval );
   return retval;
@@ -536,11 +532,9 @@ rdkcertselectorRetry_t rdkcertselector_setCurlStatus( rdkcertselector_h thiscert
       // so that the next getCert call can re-evaluate all certs from scratch
       // (dynamic certs may appear, or static certs may be renewed).
       EXTRA_DEBUG_LOG( " %s:next cert not found; resetting to first cert; NO_RETRY\n", __FUNCTION__ );
-      thiscertsel->certIndx = 0;
-      ERROR_LOG( "Debug 4 %s:thiscertsel->certUri : %s, thiscertsel->certCredRef :  %s, unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->certUri, thiscertsel->certCredRef,thiscertsel->state, cssReadyToGiveCert );
-      //certsel_findCert( thiscertsel );  // repopulate certUri/certCredRef for index 0
-      thiscertsel->state = cssReadyToGiveCert;
-      ERROR_LOG( "Debug 5 %s:thiscertsel->certUri : %s, thiscertsel->certCredRef :  %s, unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->certUri, thiscertsel->certCredRef,thiscertsel->state, cssReadyToGiveCert );
+      thiscertsel->certIndx = 0;      
+      certsel_findCert( thiscertsel );  // repopulate certUri/certCredRef for index 0
+      thiscertsel->state = cssReadyToGiveCert;      
       return NO_RETRY;
     }
 
