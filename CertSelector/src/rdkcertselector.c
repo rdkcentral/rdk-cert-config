@@ -296,6 +296,8 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
     return certselectorBadArgument;
   }
 
+  ERROR_LOG( "Debug %s:thiscertsel->certUri : %s, thiscertsel->certCredRef :  %s\n", __FUNCTION__, thiscertsel->certUri, thiscertsel->certCredRef );
+  ERROR_LOG( "Debug %s:unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->state, cssReadyToGiveCert );
   if ( thiscertsel->state != cssReadyToGiveCert ) {
     ERROR_LOG( " %s:unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->state, cssReadyToGiveCert );
     return certselectorGeneralFailure;
@@ -445,9 +447,13 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
     // Reset index to 0 and repopulate certUri/certCredRef so the next
     // getCert call can re-evaluate all certs from scratch rather than
     // hitting the empty certUri guard.
+    ERROR_LOG( "Debug 1 %s:thiscertsel->certUri : %s, thiscertsel->certCredRef :  %s\n", __FUNCTION__, thiscertsel->certUri, thiscertsel->certCredRef );
+  ERROR_LOG( "Debug 2 %s:unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->state, cssReadyToGiveCert );
     EXTRA_DEBUG_LOG( " %s:all certs exhausted, resetting to first cert\n", __FUNCTION__ );
     thiscertsel->certIndx = 0;
     certsel_findCert( thiscertsel );
+      ERROR_LOG( "Debug 3 %s:thiscertsel->certUri : %s, thiscertsel->certCredRef :  %s\n", __FUNCTION__, thiscertsel->certUri, thiscertsel->certCredRef );
+  ERROR_LOG( "Debug  3 %s:unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->state, cssReadyToGiveCert );
   }
   EXTRA_DEBUG_LOG( " %s:returning %d\n", __FUNCTION__, retval );
   return retval;
@@ -534,7 +540,11 @@ rdkcertselectorRetry_t rdkcertselector_setCurlStatus( rdkcertselector_h thiscert
       // (dynamic certs may appear, or static certs may be renewed).
       EXTRA_DEBUG_LOG( " %s:next cert not found; resetting to first cert; NO_RETRY\n", __FUNCTION__ );
       thiscertsel->certIndx = 0;
+      ERROR_LOG( "Debug 4 %s:thiscertsel->certUri : %s, thiscertsel->certCredRef :  %s\n", __FUNCTION__, thiscertsel->certUri, thiscertsel->certCredRef );
+  ERROR_LOG( "Debug  4 %s:unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->state, cssReadyToGiveCert );
       certsel_findCert( thiscertsel );  // repopulate certUri/certCredRef for index 0
+        ERROR_LOG( "Debug 5 %s:thiscertsel->certUri : %s, thiscertsel->certCredRef :  %s\n", __FUNCTION__, thiscertsel->certUri, thiscertsel->certCredRef );
+  ERROR_LOG( "Debug  5 %s:unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->state, cssReadyToGiveCert );
       thiscertsel->state = cssReadyToGiveCert;
       return NO_RETRY;
     }
