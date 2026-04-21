@@ -34,8 +34,8 @@
 #endif
 
 #define ERROR_LOG(...) RDK_LOG(RDK_LOG_ERROR, LOG_LIB, __VA_ARGS__)
-#define DEBUG_LOG(...) RDK_LOG(RDK_LOG_INFO, LOG_LIB, __VA_ARGS__)
-#define EXTRA_DEBUG_LOG(...) RDK_LOG(RDK_LOG_DEBUG, LOG_LIB, __VA_ARGS__)
+#define DEBUG_LOG(...) RDK_LOG(ERROR_LOG, LOG_LIB, __VA_ARGS__)
+#define EXTRA_DEBUG_LOG(...) RDK_LOG(ERROR_LOG, LOG_LIB, __VA_ARGS__)
 
 #include <stdlib.h>
 #include <stdio.h>
