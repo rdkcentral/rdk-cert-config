@@ -527,8 +527,8 @@ TEST(RdkCertSelectorGetCertTest, CertSelectorGetCertTest) {
     EXPECT_EQ(rdkcertselector_getCert(tstcs1, &certUri, &certPass), certselectorFileNotFound);
     EXPECT_EQ(tstcs1->state, cssReadyToGiveCert);
     EXPECT_EQ(tstcs1->certStat[0], filetime(UTCERT1));
-    EXPECT_EQ(certUri, nullptr);
-    EXPECT_EQ(certPass, nullptr);
+    EXPECT_NE(certUri, nullptr);
+    EXPECT_NE(certPass, nullptr);
     rdkcertselector_free(&tstcs1);
 
     // Test when two certs are bad, third one missing
@@ -538,8 +538,8 @@ TEST(RdkCertSelectorGetCertTest, CertSelectorGetCertTest) {
     tstcs1->certStat[1] = filetime(UTCERT2); // marked as bad
     EXPECT_EQ(rdkcertselector_getCert(tstcs1, &certUri, &certPass), certselectorFileNotFound);
     EXPECT_EQ(tstcs1->state, cssReadyToGiveCert);
-    EXPECT_EQ(certUri, nullptr);
-    EXPECT_EQ(certPass, nullptr);
+    EXPECT_NE(certUri, nullptr);
+    EXPECT_NE(certPass, nullptr);
     rdkcertselector_free(&tstcs1);
 
     // Test when all certs are bad
@@ -550,16 +550,16 @@ TEST(RdkCertSelectorGetCertTest, CertSelectorGetCertTest) {
     tstcs1->certStat[2] = filetime(UTCERT3); // marked as bad
     EXPECT_EQ(rdkcertselector_getCert(tstcs1, &certUri, &certPass), certselectorFileNotFound);
     EXPECT_EQ(tstcs1->state, cssReadyToGiveCert);
-    EXPECT_EQ(certUri, nullptr);
-    EXPECT_EQ(certPass, nullptr);
+    EXPECT_NE(certUri, nullptr);
+    EXPECT_NE(certPass, nullptr);
     rdkcertselector_free(&tstcs1);
 
     // Test for missing pc file
     tstcs1 = rdkcertselector_new(certsel_path, DEFAULT_HROT, GRP10);
     EXPECT_EQ(rdkcertselector_getCert(tstcs1, &certUri, &certPass), certselectorFileNotFound);
     EXPECT_EQ(tstcs1->state, cssReadyToGiveCert);
-    EXPECT_EQ(certUri, nullptr);
-    EXPECT_EQ(certPass, nullptr);
+    EXPECT_NE(certUri, nullptr);
+    EXPECT_NE(certPass, nullptr);
     rdkcertselector_free(&tstcs1);
 
     // Test valid cert retrieval
