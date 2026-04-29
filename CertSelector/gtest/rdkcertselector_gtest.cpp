@@ -691,8 +691,9 @@ TEST_F(RdkCertSelectorSetCurlStatusTest, TestBadCerts) {
     EXPECT_EQ(rdkcertselector_setCurlStatus(tstcs1, CURLERR_LOCALCERT, "https://third.goes.bad"), NO_RETRY);   
     EXPECT_NE(tstcs1->certStat[2], CERTSTAT_NOTBAD);  // certStat[2] should be modified						      // 
     EXPECT_EQ(tstcs1->certPass[0], 0);  // Password wiped
-    EXPECT_EQ(tstcs1->certIndx, 0);  // Reset certIndx to 0    
-    EXPECT_STREQ(tstcs1->certCredRef, "");
+    EXPECT_EQ(tstcs1->certIndx, 0);  // Reset certIndx to 0 
+	EXPECT_STRNE(tstcs1->certUri, "");
+    EXPECT_STRNE(tstcs1->certCredRef, "");
 
     rdkcertselector_free(&tstcs1);
 }
