@@ -614,7 +614,7 @@ TEST(RdkCertSelectorGetCertTest, CertSelectorGetCertTest) {
     EXPECT_NE(certPass, nullptr);
     EXPECT_STREQ(certPass, "pc3pass");
     rdkcertselector_free(&tstcs1);
-#if 0    
+
     UT_SYSTEM0("mv ./ut/tstXfirst.tmp " UTCERT1);
     UT_SYSTEM0("mv ./ut/tstXsecond.tmp " UTCERT2);
     
@@ -635,7 +635,7 @@ TEST(RdkCertSelectorGetCertTest, CertSelectorGetCertTest) {
     rdkcertselector_free(&tstcs1);
     // Continue with other multi group tests as shown in your original code
     // (Repeat similar tests for A2, A4, A7, A9, A10)
-#endif
+
 }
 
 /* function : ut_rdkcertselector_setCurlStatus();
