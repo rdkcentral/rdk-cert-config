@@ -559,7 +559,7 @@ TEST(RdkCertSelectorGetCertTest, CertSelectorGetCertTest) {
     EXPECT_NE(certUri, nullptr);
     EXPECT_NE(certPass, nullptr);
     rdkcertselector_free(&tstcs1);
-#if 0
+
     // Test valid cert retrieval
     tstcs1 = rdkcertselector_new(certsel_path, DEFAULT_HROT, GRP1);
     EXPECT_EQ(rdkcertselector_getCert(tstcs1, &certUri, &certPass), certselectorOk);
@@ -614,7 +614,7 @@ TEST(RdkCertSelectorGetCertTest, CertSelectorGetCertTest) {
     EXPECT_NE(certPass, nullptr);
     EXPECT_STREQ(certPass, "pc3pass");
     rdkcertselector_free(&tstcs1);
-    
+#if 0    
     UT_SYSTEM0("mv ./ut/tstXfirst.tmp " UTCERT1);
     UT_SYSTEM0("mv ./ut/tstXsecond.tmp " UTCERT2);
     
