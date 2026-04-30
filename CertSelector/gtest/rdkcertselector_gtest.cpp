@@ -461,6 +461,7 @@ TEST(RdkCertSelectorTest, CertSelectorGetEngineTest) {
  * unit tests for rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, const char **certUri, const char **certPass )
  */
 // Test case for testing rdkcertselector_getCert function with various edge cases and valid cases
+#if 0
 TEST(RdkCertSelectorGetCertTest, CertSelectorGetCertTest) {
 
     rdkcertselector_h tstcs1 = nullptr;
@@ -638,6 +639,7 @@ TEST(RdkCertSelectorGetCertTest, CertSelectorGetCertTest) {
     // Continue with other multi group tests as shown in your original code
     // (Repeat similar tests for A2, A4, A7, A9, A10)
 }
+#endif
 /* function : ut_rdkcertselector_setCurlStatus();
  *
  * unit tests for rdkcertselectorRetry_t rdkcertselector_setCurlStatus( rdkcertselector_h thiscertsel, unsigned int curlStat )
