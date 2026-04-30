@@ -313,6 +313,14 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
   rdkcertselectorStatus_t findval = certselectorGeneralFailure; // used when looking for next cert
   uint16_t certIndx = 0;
 
+  // fallback: track the last bad (corrupted) cert so it can be returned if all certs are exhausted
+  char lastBadUri[PATH_MAX+1];
+  char lastBadCredRef[PARAM_MAX+1];
+  uint16_t lastBadIndx = 0;
+  int hasLastBad = 0;
+  lastBadUri[0] = '\0';
+  lastBadCredRef[0] = '\0';
+
   // while checking certs in config file, break if cert found or if no more certs available
   //                                      continue if this cert is not ok and more certs available
   while ( thisCertUri[0] != '\0' ) {
@@ -355,14 +363,22 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
       // file was bad, see if it has changed
       unsigned long badTime = thiscertsel->certStat[certIndx];
       if ( badTime == modTime ) {
-        // file did not change, find next cert, continue
+        // file did not change, save as last bad cert fallback, then find next cert, continue
         EXTRA_DEBUG_LOG( " %s:cert file unchanged[%s|%lu]\n", __FUNCTION__, certFile, (unsigned long)modTime );
+
+        // save this cert as the most recent bad cert before advancing to the next one
+        strncpy( lastBadUri, thisCertUri, sizeof(lastBadUri)-1 );
+        lastBadUri[sizeof(lastBadUri)-1] = '\0';
+        strncpy( lastBadCredRef, thisCertCredRef, sizeof(lastBadCredRef)-1 );
+        lastBadCredRef[sizeof(lastBadCredRef)-1] = '\0';
+        lastBadIndx = certIndx;
+        hasLastBad = 1;
 
         retval = certsel_findNextCert( thiscertsel ); // next cert
         if ( retval != certselectorOk ) {
           EXTRA_DEBUG_LOG( " %s:next cert not found (%u)\n", __FUNCTION__, retval );
           retval = certselectorFileNotFound;
-          break; // give up
+          break; // give up, will fall back to last bad cert below
         }
 
         thisCertUri = thiscertsel->certUri;
@@ -431,13 +447,51 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
 
   } // end while
 
+  // If all certs were exhausted due to corruption, fall back to the last bad cert
+  if ( retval != certselectorOk && hasLastBad ) {
+    DEBUG_LOG( " %s:all certs exhausted; falling back to last bad cert [%s]\n", __FUNCTION__, lastBadUri );
+
+    // restore the last bad cert into the selector object
+    strncpy( thiscertsel->certUri, lastBadUri, sizeof(thiscertsel->certUri)-1 );
+    thiscertsel->certUri[sizeof(thiscertsel->certUri)-1] = '\0';
+    strncpy( thiscertsel->certCredRef, lastBadCredRef, sizeof(thiscertsel->certCredRef)-1 );
+    thiscertsel->certCredRef[sizeof(thiscertsel->certCredRef)-1] = '\0';
+    thiscertsel->certIndx = lastBadIndx;
+    certIndx = lastBadIndx;
+
+    // attempt to retrieve the passcode for the fallback cert
+    char *pc = NULL;
+    size_t pcsz = 0;
+    if ( rdkconfig_getStr( &pc, &pcsz, lastBadCredRef ) == RDKCONFIG_OK ) {
+      if ( pc != NULL ) {
+        if ( pc[pcsz-2] == '\n' ) {
+          pc[pcsz-2] = '\0';
+          --pcsz;
+        }
+        if ( pcsz < (sizeof(thiscertsel->certPass)-1) ) {
+          memcpy( thiscertsel->certPass, pc, pcsz );
+          thiscertsel->certPass[pcsz] = '\0';
+          rdkconfig_freeStr( &pc, pcsz );
+          EXTRA_DEBUG_LOG( " %s:got passcode for fallback cert\n", __FUNCTION__ );
+        } else {
+          ERROR_LOG( " %s:fallback pc did not fit (%zu)\n", __FUNCTION__, pcsz );
+          rdkconfig_freeStr( &pc, pcsz );
+        }
+      }
+    } else {
+      DEBUG_LOG( " %s:could not retrieve passcode for fallback cert\n", __FUNCTION__ );
+    }
+    // return the cert regardless - caller requested last cert even if corrupted
+    retval = certselectorOk;
+  }
+
   if ( retval == certselectorOk ) {
     *certUri = thiscertsel->certUri;
     *certPass = thiscertsel->certPass;
     thiscertsel->state = cssReadyToCheckCert;
 
     if ( thiscertsel->certStat[certIndx] != CERTSTAT_NOTBAD ) {
-      ERROR_LOG( " %s:INTERNAL ERROR: current stat should not be %lu\n", __FUNCTION__,  thiscertsel->certStat[certIndx] );
+      DEBUG_LOG( " %s:returning last bad cert [%s] index [%u]\n", __FUNCTION__, thiscertsel->certUri, certIndx );
     }
     EXTRA_DEBUG_LOG( " %s:returning [%s:%s] index [%u]\n", __FUNCTION__, thiscertsel->certUri, "*****", certIndx );
   }
@@ -521,10 +575,16 @@ rdkcertselectorRetry_t rdkcertselector_setCurlStatus( rdkcertselector_h thiscert
     // find next cert; need to know if another one is available or not
     rdkcertselectorStatus_t retval = certsel_findNextCert( thiscertsel );
     if ( retval != certselectorOk ) {
-      // if no cert, reset indx to 0; set state to noCert; return no retry
-      EXTRA_DEBUG_LOG( " %s:next cert not found; NO_RETRY\n", __FUNCTION__ );
+      // if no next cert, reset to first cert so next getCert call can run fallback logic
+      EXTRA_DEBUG_LOG( " %s:next cert not found; reset to first cert and NO_RETRY\n", __FUNCTION__ );
       thiscertsel->certIndx = 0;
-      thiscertsel->state = cssNoCert;
+      retval = certsel_findCert( thiscertsel );
+      if ( retval != certselectorOk ) {
+        ERROR_LOG( " %s:INTERNAL ERROR: could not reset to first cert\n", __FUNCTION__ );
+        thiscertsel->state = cssNoCert;
+        return NO_RETRY;
+      }
+      thiscertsel->state = cssReadyToGiveCert;
       return NO_RETRY;
     }
 
@@ -1297,38 +1357,38 @@ static void ut_rdkcertselector_getCert( void ) {
   UT_INTCMP( rdkcertselector_getCert( tstcs1, &certUri, &certPass ), certselectorFileNotFound );
   rdkcertselector_free( &tstcs1 );
 
-  // first cert marked as bad, second and third missing
+  // first cert marked as bad, second and third missing, fallback to first bad cert
   UT_SYSTEM0( "mv ./ut/tstXfirst.tmp " UTCERT1 );  // cert no longer missing
   tstcs1 = rdkcertselector_new( certsel_path, DEFAULT_HROT, GRP1 );
   tstcs1->certStat[0] = filetime( UTCERT1 ); // marked as bad
-  UT_INTCMP( rdkcertselector_getCert( tstcs1, &certUri, &certPass ), certselectorFileNotFound );
-  UT_INTCMP( tstcs1->state, cssReadyToGiveCert );
+  UT_INTCMP( rdkcertselector_getCert( tstcs1, &certUri, &certPass ), certselectorOk );
+  UT_INTCMP( tstcs1->state, cssReadyToCheckCert );
   UT_INTCMP( tstcs1->certStat[0], filetime( UTCERT1 ) );
-  UT_NULL( certUri );
-  UT_NULL( certPass );
+  UT_STRCMP( certUri, FILESCHEME UTCERT1, PARAM_MAX );
+  UT_STRCMP( certPass, UTPASS1, PARAM_MAX );
   rdkcertselector_free( &tstcs1 );
 
-  // first cert marked as bad; second cert marked as bad; third missing
+  // first cert marked as bad; second cert marked as bad; third missing, fallback to second bad cert
   UT_SYSTEM0( "mv ./ut/tstXsecond.tmp " UTCERT2 );  // cert no longer missing
   tstcs1 = rdkcertselector_new( certsel_path, DEFAULT_HROT, GRP1 );
   tstcs1->certStat[0] = filetime( UTCERT1 ); // marked as bad
   tstcs1->certStat[1] = filetime( UTCERT2 ); // marked as bad
-  UT_INTCMP( rdkcertselector_getCert( tstcs1, &certUri, &certPass ), certselectorFileNotFound );
-  UT_INTCMP( tstcs1->state, cssReadyToGiveCert );
-  UT_NULL( certUri );
-  UT_NULL( certPass );
+  UT_INTCMP( rdkcertselector_getCert( tstcs1, &certUri, &certPass ), certselectorOk );
+  UT_INTCMP( tstcs1->state, cssReadyToCheckCert );
+  UT_STRCMP( certUri, FILESCHEME UTCERT2, PARAM_MAX );
+  UT_STRCMP( certPass, UTPASS2, PARAM_MAX );
   rdkcertselector_free( &tstcs1 );
 
-  // first cert marked as bad; second cert marked as bad; third cert marked as bad
+  // first cert marked as bad; second cert marked as bad; third cert marked as bad, fallback to third bad cert
   UT_SYSTEM0( "mv ./ut/tstXthird.tmp " UTCERT3 );  // cert no longer missing
   tstcs1 = rdkcertselector_new( certsel_path, DEFAULT_HROT, GRP1 );
   tstcs1->certStat[0] = filetime( UTCERT1 ); // marked as bad
   tstcs1->certStat[1] = filetime( UTCERT2 ); // marked as bad
   tstcs1->certStat[2] = filetime( UTCERT3 ); // marked as bad
-  UT_INTCMP( rdkcertselector_getCert( tstcs1, &certUri, &certPass ), certselectorFileNotFound );
-  UT_INTCMP( tstcs1->state, cssReadyToGiveCert );
-  UT_NULL( certUri );
-  UT_NULL( certPass );
+  UT_INTCMP( rdkcertselector_getCert( tstcs1, &certUri, &certPass ), certselectorOk );
+  UT_INTCMP( tstcs1->state, cssReadyToCheckCert );
+  UT_STRCMP( certUri, FILESCHEME UTCERT3, PARAM_MAX );
+  UT_STRCMP( certPass, UTPASS3, PARAM_MAX );
   rdkcertselector_free( &tstcs1 );
 
   UT_LOG( "Expect 1 error message for missing pc" );
@@ -1474,8 +1534,9 @@ static void ut_rdkcertselector_setCurlStatus( void ) {
   UT_INTDIFF( tstcs1->certStat[2], CERTSTAT_NOTBAD );
   UT_INTCMP( tstcs1->certPass[0], 0 ); // password wiped
   UT_INTCMP( tstcs1->certIndx, 0 );
-  UT_STRCMP( tstcs1->certUri, "", PATH_MAX );
-  UT_STRCMP( tstcs1->certCredRef, "", PARAM_MAX );
+  UT_INTCMP( tstcs1->state, cssReadyToGiveCert );
+  UT_STRCMP( tstcs1->certUri, FILESCHEME UTCERT1, PATH_MAX );
+  UT_STRCMP( tstcs1->certCredRef, UTCRED1, PARAM_MAX );
   rdkcertselector_free( &tstcs1 );
 
   UT_LOG( "valid" );
