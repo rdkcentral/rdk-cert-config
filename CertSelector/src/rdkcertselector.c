@@ -384,7 +384,23 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
       EXTRA_DEBUG_LOG( " %s:file not marked bad\n", __FUNCTION__ );
       retval = certselectorOk;
     }
-
+      
+    if ( retval == certselectorFileNotFound ) {
+        if ( thiscertsel->certIndx > 0 ) {
+            thiscertsel->certIndx--;
+        }
+        
+        thiscertsel->certUri[0] = '\0';
+        thiscertsel->certCredRef[0] = '\0';
+        rdkcertselectorStatus_t certstat = certsel_findCert( thiscertsel );
+        if ( certstat == certselectorOk ) {
+          certIndx = thiscertsel->certIndx;
+          thisCertUri = thiscertsel->certUri;
+          thisCertCredRef = thiscertsel->certCredRef;
+          retval = certselectorOk;
+        }        
+    }
+      
     if ( retval == certselectorOk ) {
       EXTRA_DEBUG_LOG( " %s:get passcode (%u)\n", __FUNCTION__, retval );
       // file exists and is not the same as bad (or was not marked as bad), so get the passcode and return them
@@ -508,6 +524,15 @@ rdkcertselectorRetry_t rdkcertselector_setCurlStatus( rdkcertselector_h thiscert
     ERROR_LOG( "curl cert error (%u) [%s]\n", curlStat, logEndpoint!=NULL?logEndpoint:"" );
     EXTRA_DEBUG_LOG( " %s:curl cert error [%u]\n", __FUNCTION__, curlStat );
 
+    // If this cert was already marked bad, it was selected as the last cert.
+    // No more certs are available, so do not retry.
+    if ( thiscertsel->certStat[certIndx] != CERTSTAT_NOTBAD ) {
+      EXTRA_DEBUG_LOG( " %s:already bad cert selected, no more certs; NO_RETRY\n", __FUNCTION__ );
+      thiscertsel->certIndx = 0;
+      thiscertsel->state = cssReadyToGiveCert;
+      return NO_RETRY;
+    }
+      
     char *certFile = thiscertsel->certUri;
     // strip off uri scheme "file://"
     if ( strncmp( certFile, FILESCHEME, sizeof(FILESCHEME)-1 ) == 0 ) {
@@ -521,10 +546,16 @@ rdkcertselectorRetry_t rdkcertselector_setCurlStatus( rdkcertselector_h thiscert
     // find next cert; need to know if another one is available or not
     rdkcertselectorStatus_t retval = certsel_findNextCert( thiscertsel );
     if ( retval != certselectorOk ) {
-      // if no cert, reset indx to 0; set state to noCert; return no retry
-      EXTRA_DEBUG_LOG( " %s:next cert not found; NO_RETRY\n", __FUNCTION__ );
+       // if no next cert, reset to first cert so next getCert call can run fallback logic
+      EXTRA_DEBUG_LOG( " %s:next cert not found; reset to first cert and NO_RETRY\n", __FUNCTION__ );
       thiscertsel->certIndx = 0;
-      thiscertsel->state = cssNoCert;
+      retval = certsel_findCert( thiscertsel );
+      if ( retval != certselectorOk ) {
+        ERROR_LOG( " %s:INTERNAL ERROR: could not reset to first cert\n", __FUNCTION__ );
+        thiscertsel->state = cssNoCert;
+        return NO_RETRY;
+      }
+      thiscertsel->state = cssReadyToGiveCert;
       return NO_RETRY;
     }
 
