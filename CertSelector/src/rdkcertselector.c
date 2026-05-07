@@ -34,8 +34,8 @@
 #endif
 
 #define ERROR_LOG(...) RDK_LOG(RDK_LOG_ERROR, LOG_LIB, __VA_ARGS__)
-#define DEBUG_LOG(...) RDK_LOG(RDK_LOG_ERROR, LOG_LIB, __VA_ARGS__)
-#define EXTRA_DEBUG_LOG(...) RDK_LOG(RDK_LOG_ERROR, LOG_LIB, __VA_ARGS__)
+#define DEBUG_LOG(...) RDK_LOG(RDK_LOG_INFO, LOG_LIB, __VA_ARGS__)
+#define EXTRA_DEBUG_LOG(...) RDK_LOG(RDK_LOG_DEBUG, LOG_LIB, __VA_ARGS__)
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -582,7 +582,7 @@ rdkcertselectorRetry_t rdkcertselector_setCurlStatus( rdkcertselector_h thiscert
       if ( retval != certselectorOk ) {
         ERROR_LOG( " %s:INTERNAL ERROR: could not reset to first cert\n", __FUNCTION__ );
         thiscertsel->state = cssNoCert;
-        return NO_RETRY;
+        return RETRY_ERROR;
       }
       thiscertsel->state = cssReadyToGiveCert;
       return NO_RETRY;
