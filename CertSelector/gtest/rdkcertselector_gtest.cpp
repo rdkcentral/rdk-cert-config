@@ -543,15 +543,18 @@ TEST(RdkCertSelectorGetCertTest, CertSelectorGetCertTest) {
     rdkcertselector_free(&tstcs1);
 
     // Test when all certs are bad
+	// Test when all certs are bad - should fallback to last bad cert
     UT_SYSTEM0("mv ./ut/tstXthird.tmp " UTCERT3);  // cert no longer missing
     tstcs1 = rdkcertselector_new(certsel_path, DEFAULT_HROT, GRP1);
     tstcs1->certStat[0] = filetime(UTCERT1); // marked as bad
     tstcs1->certStat[1] = filetime(UTCERT2); // marked as bad
     tstcs1->certStat[2] = filetime(UTCERT3); // marked as bad
-    EXPECT_EQ(rdkcertselector_getCert(tstcs1, &certUri, &certPass), certselectorFileNotFound);
+    EXPECT_EQ(rdkcertselector_getCert(tstcs1, &certUri, &certPass), certselectorOk);
     EXPECT_EQ(tstcs1->state, cssReadyToGiveCert);
-    EXPECT_EQ(certUri, nullptr);
-    EXPECT_EQ(certPass, nullptr);
+    EXPECT_NE(certUri, nullptr);
+    EXPECT_STREQ(certUri, "file://./ut/tst1third.tmp");  // Should return last cert as fallback
+    EXPECT_NE(certPass, nullptr);
+    EXPECT_STREQ(certPass, "pc3pass");
     rdkcertselector_free(&tstcs1);
 
     // Test for missing pc file
@@ -637,6 +640,32 @@ TEST(RdkCertSelectorGetCertTest, CertSelectorGetCertTest) {
     rdkcertselector_free(&tstcs1);
     // Continue with other multi group tests as shown in your original code
     // (Repeat similar tests for A2, A4, A7, A9, A10)
+	 // Test repeated getCert calls when all certs are bad - should return same fallback cert
+    tstcs1 = rdkcertselector_new(certsel_path, DEFAULT_HROT, GRP1);
+    tstcs1->certStat[0] = filetime(UTCERT1); // marked as bad
+    tstcs1->certStat[1] = filetime(UTCERT2); // marked as bad
+    tstcs1->certStat[2] = filetime(UTCERT3); // marked as bad
+    
+    // First iteration - should return last bad cert
+    EXPECT_EQ(rdkcertselector_getCert(tstcs1, &certUri, &certPass), certselectorOk);
+    EXPECT_STREQ(certUri, "file://./ut/tst1third.tmp");
+    EXPECT_STREQ(certPass, "pc3pass");
+    
+    // Set state to ready for next call
+    tstcs1->state = cssReadyToGiveCert;
+    
+    // Second iteration - should return same last bad cert
+    EXPECT_EQ(rdkcertselector_getCert(tstcs1, &certUri, &certPass), certselectorOk);
+    EXPECT_STREQ(certUri, "file://./ut/tst1third.tmp");
+    EXPECT_STREQ(certPass, "pc3pass");
+    
+    // Third iteration - should still return same last bad cert
+    tstcs1->state = cssReadyToGiveCert;
+    EXPECT_EQ(rdkcertselector_getCert(tstcs1, &certUri, &certPass), certselectorOk);
+    EXPECT_STREQ(certUri, "file://./ut/tst1third.tmp");
+    EXPECT_STREQ(certPass, "pc3pass");
+    
+    rdkcertselector_free(&tstcs1);	
 }
 /* function : ut_rdkcertselector_setCurlStatus();
  *
@@ -678,6 +707,7 @@ TEST_F(RdkCertSelectorSetCurlStatusTest, TestInvalidArguments) {
     rdkcertselector_free(&tstcs1);
 }
 // Test for bad certificate scenario (2 bad certs, trying 3rd cert)
+// When all certs are bad, it should reset to first cert and populate its info
 TEST_F(RdkCertSelectorSetCurlStatusTest, TestBadCerts) {
     tstcs1 = rdkcertselector_new(certsel_path, DEFAULT_HROT, GRP1);
     tstcs1->state = cssReadyToCheckCert;
@@ -686,14 +716,16 @@ TEST_F(RdkCertSelectorSetCurlStatusTest, TestBadCerts) {
     tstcs1->certStat[1] = filetime(UTCERT2);
     tstcs1->certPass[0] = 'P';
 
-    // Cert 3 goes bad, no more certs
+   // Cert 3 goes bad, no more certs - should reset to first cert
     EXPECT_EQ(tstcs1->certStat[2], CERTSTAT_NOTBAD);
     EXPECT_EQ(rdkcertselector_setCurlStatus(tstcs1, CURLERR_LOCALCERT, "https://third.goes.bad"), NO_RETRY);   
-    EXPECT_NE(tstcs1->certStat[2], CERTSTAT_NOTBAD);  // certStat[2] should be modified						      // 
+    EXPECT_NE(tstcs1->certStat[2], CERTSTAT_NOTBAD);  // certStat[2] should be marked bad
     EXPECT_EQ(tstcs1->certPass[0], 0);  // Password wiped
     EXPECT_EQ(tstcs1->certIndx, 0);  // Reset certIndx to 0
-    EXPECT_STREQ(tstcs1->certUri, "");
-    EXPECT_STREQ(tstcs1->certCredRef, "");
+    // After reset, should have reloaded first cert info
+    EXPECT_STREQ(tstcs1->certUri, FILESCHEME UTCERT1);
+    EXPECT_STREQ(tstcs1->certCredRef, UTCRED1);
+    EXPECT_EQ(tstcs1->state, cssReadyToGiveCert);
 
     rdkcertselector_free(&tstcs1);
 }
