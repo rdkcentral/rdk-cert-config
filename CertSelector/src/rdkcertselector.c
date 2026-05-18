@@ -432,57 +432,45 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
   } // end while
 
   // If all certs were exhausted, fall back to the last attempted bad cert.
-  if ( retval != certselectorOk ) {
-    int fallbackFound = 0;
-    uint16_t savedIndx = thiscertsel->certIndx;
-    uint16_t fallbackIndx = savedIndx;
+  if ( retval == certselectorFileNotFound ) {    
+    uint16_t lastIndx = thiscertsel->certIndx;    
 
-    // when next-cert lookup fails, certIndx points past the last candidate;
-    // decrement once to target the last cert that was actually attempted
-    if ( fallbackIndx > LIST_MAX ) {
-      fallbackIndx = LIST_MAX;
-    }
-    if ( fallbackIndx > 0 ) {
-      fallbackIndx--;
-      if ( thiscertsel->certStat[fallbackIndx] != CERTSTAT_NOTBAD ) {
-        thiscertsel->certIndx = fallbackIndx;
+    if ( lastIndx > 0 ) {
+      lastIndx--;
+      if ( thiscertsel->certStat[lastIndx] != CERTSTAT_NOTBAD ) {
+        thiscertsel->certIndx = lastIndx;
         if ( certsel_findCert( thiscertsel ) == certselectorOk ) {
-          certIndx = thiscertsel->certIndx;
-          fallbackFound = 1;
+          certIndx = thiscertsel->certIndx;          
         }
       }
     }
 
-    if ( !fallbackFound ) {
-      thiscertsel->certIndx = savedIndx;
+    DEBUG_LOG( " %s:all certs exhausted; falling back to last bad cert [%s]\n", __FUNCTION__, thiscertsel->certUri );
+
+    // attempt to retrieve the passcode for the fallback cert
+    char *pc = NULL;
+    size_t pcsz = 0;
+    if ( rdkconfig_getStr( &pc, &pcsz, thiscertsel->certCredRef ) == RDKCONFIG_OK ) {
+      if ( pc != NULL ) {
+        if ( pc[pcsz-2] == '\n' ) {
+          pc[pcsz-2] = '\0';
+          --pcsz;
+        }
+        if ( pcsz < (sizeof(thiscertsel->certPass)-1) ) {
+          memcpy( thiscertsel->certPass, pc, pcsz );
+          thiscertsel->certPass[pcsz] = '\0';
+          rdkconfig_freeStr( &pc, pcsz );
+          EXTRA_DEBUG_LOG( " %s:got passcode for fallback cert\n", __FUNCTION__ );
+        } else {
+          ERROR_LOG( " %s:fallback pc did not fit (%zu)\n", __FUNCTION__, pcsz );
+          rdkconfig_freeStr( &pc, pcsz );
+        }
+      }
     } else {
-      DEBUG_LOG( " %s:all certs exhausted; falling back to last bad cert [%s]\n", __FUNCTION__, thiscertsel->certUri );
-
-      // attempt to retrieve the passcode for the fallback cert
-      char *pc = NULL;
-      size_t pcsz = 0;
-      if ( rdkconfig_getStr( &pc, &pcsz, thiscertsel->certCredRef ) == RDKCONFIG_OK ) {
-        if ( pc != NULL ) {
-          if ( pc[pcsz-2] == '\n' ) {
-            pc[pcsz-2] = '\0';
-            --pcsz;
-          }
-          if ( pcsz < (sizeof(thiscertsel->certPass)-1) ) {
-            memcpy( thiscertsel->certPass, pc, pcsz );
-            thiscertsel->certPass[pcsz] = '\0';
-            rdkconfig_freeStr( &pc, pcsz );
-            EXTRA_DEBUG_LOG( " %s:got passcode for fallback cert\n", __FUNCTION__ );
-          } else {
-            ERROR_LOG( " %s:fallback pc did not fit (%zu)\n", __FUNCTION__, pcsz );
-            rdkconfig_freeStr( &pc, pcsz );
-          }
-        }
-      } else {
-        DEBUG_LOG( " %s:could not retrieve passcode for fallback cert\n", __FUNCTION__ );
-      }
-      // return the cert regardless - caller requested last cert even if corrupted
-      retval = certselectorOk;
+      DEBUG_LOG( " %s:could not retrieve passcode for fallback cert\n", __FUNCTION__ );
     }
+    // return the cert regardless - caller requested last cert even if corrupted
+    retval = certselectorOk;    
   }
 
   if ( retval == certselectorOk ) {
