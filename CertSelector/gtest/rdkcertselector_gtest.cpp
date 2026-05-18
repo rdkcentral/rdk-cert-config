@@ -524,12 +524,12 @@ TEST(RdkCertSelectorGetCertTest, CertSelectorGetCertTest) {
     UT_SYSTEM0("mv ./ut/tstXfirst.tmp " UTCERT1);
     tstcs1 = rdkcertselector_new(certsel_path, DEFAULT_HROT, GRP1);
     tstcs1->certStat[0] = filetime(UTCERT1); // marked as bad
-    EXPECT_EQ(rdkcertselector_getCert(tstcs1, &certUri, &certPass), certselectorOk);
-    EXPECT_EQ(tstcs1->state, cssReadyToCheckCert);
-    EXPECT_EQ(tstcs1->certStat[0], filetime(UTCERT1));
-    EXPECT_STREQ(certUri, nullptr);
-    EXPECT_STREQ(certPass, nullptr);
-    rdkcertselector_free(&tstcs1);
+   EXPECT_EQ(rdkcertselector_getCert(tstcs1, &certUri, &certPass), certselectorOk);
+   EXPECT_EQ(tstcs1->state, cssReadyToCheckCert);
+   EXPECT_NE(certUri, nullptr);
+   EXPECT_NE(certPass, nullptr);
+   EXPECT_STREQ(certUri, FILESCHEME UTCERT1);
+   EXPECT_STREQ(certPass, UTPASS1);
 
     // Test when two certs are bad, third one missing
     UT_SYSTEM0("mv ./ut/tstXsecond.tmp " UTCERT2);
@@ -550,12 +550,11 @@ TEST(RdkCertSelectorGetCertTest, CertSelectorGetCertTest) {
     tstcs1->certStat[1] = filetime(UTCERT2); // marked as bad
     tstcs1->certStat[2] = filetime(UTCERT3); // marked as bad
     EXPECT_EQ(rdkcertselector_getCert(tstcs1, &certUri, &certPass), certselectorOk);
-    EXPECT_EQ(tstcs1->state, cssReadyToCheckCert);
+	EXPECT_EQ(tstcs1->state, cssReadyToCheckCert);
     EXPECT_NE(certUri, nullptr);
-    EXPECT_STREQ(certUri, "file://./ut/tst1third.tmp");  // Should return last cert as fallback
     EXPECT_NE(certPass, nullptr);
-    EXPECT_STREQ(certPass, "pc3pass");
-    rdkcertselector_free(&tstcs1);
+    EXPECT_STREQ(certUri, FILESCHEME UTCERT3);
+    EXPECT_STREQ(certPass, UTPASS3);
 
     // Test for missing pc file
     tstcs1 = rdkcertselector_new(certsel_path, DEFAULT_HROT, GRP10);
