@@ -444,6 +444,7 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
           certIndx = thiscertsel->certIndx;      
           foundFallback = 1;
         }
+        break;
       }    
     }
 
