@@ -538,8 +538,8 @@ TEST(RdkCertSelectorGetCertTest, CertSelectorGetCertTest) {
     tstcs1->certStat[1] = filetime(UTCERT2); // marked as bad
     EXPECT_EQ(rdkcertselector_getCert(tstcs1, &certUri, &certPass), certselectorOk);
     EXPECT_EQ(tstcs1->state, cssReadyToCheckCert);
-    EXPECT_STREQ(certUri, nullptr);
-    EXPECT_STREQ(certPass, nullptr);
+    EXPECT_STREQ(certUri, FILESCHEME UTCERT2);
+    EXPECT_STREQ(certPass, UTPASS2);
     rdkcertselector_free(&tstcs1);
 
     // Test when all certs are bad
