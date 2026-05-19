@@ -316,8 +316,7 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
   // while checking certs in config file, break if cert found or if no more certs available
   //                                      continue if this cert is not ok and more certs available
   while ( thisCertUri[0] != '\0' ) {
-    certIndx = thiscertsel->certIndx;
-    uint16_t lastIndx = thiscertsel->certIndx;
+    certIndx = thiscertsel->certIndx;    
     char *certFile = thisCertUri;
     // strip off uri scheme "file://"
     if ( strncmp( certFile, FILESCHEME, sizeof(FILESCHEME)-1 ) == 0 ) {
@@ -435,7 +434,8 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
   // If all certs were exhausted, fall back to the last attempted bad cert.
   if ( retval == certselectorFileNotFound ) {
     int foundFallback = 0;    
-
+    uint16_t lastIndx = thiscertsel->certIndx;
+      
     while ( lastIndx > 0 ) {
       lastIndx--;
       if ( thiscertsel->certStat[lastIndx] != CERTSTAT_NOTBAD ) {
