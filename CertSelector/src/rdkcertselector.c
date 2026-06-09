@@ -35,7 +35,7 @@
 
 #define ERROR_LOG(...) RDK_LOG(RDK_LOG_ERROR, LOG_LIB, __VA_ARGS__)
 #define DEBUG_LOG(...) RDK_LOG(RDK_LOG_INFO, LOG_LIB, __VA_ARGS__)
-#define EXTRA_DEBUG_LOG(...) RDK_LOG(RDK_LOG_DEBUG, LOG_LIB, __VA_ARGS__)
+#define EXTRA_DEBUG_LOG(...) RDK_LOG(RDK_LOG_ERROR, LOG_LIB, __VA_ARGS__)
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -256,6 +256,7 @@ char *rdkcertselector_getEngine( rdkcertselector_h thiscertsel ) {
   } else {
     hroteng = NULL;
   }
+  ERROR_LOG( " %s: engine (%s)\n", __FUNCTION__, hroteng );
   return hroteng;
 
 } // rdkcertselector_getEngine( )
