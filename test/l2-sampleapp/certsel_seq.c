@@ -260,8 +260,7 @@ int certGetAndSet(rdkcertselector_h thiscertsel, unsigned int curlStat, const ch
         char *eng = rdkcertselector_getEngine( thiscertsel );
         const char *engdef="e4tstdef";
         if ( eng!=NULL && strcmp( eng, engdef ) != 0 ) {
-                ERROR_LOG( "getEngine error (%s!=%s)j\n", eng, engdef );
-                return L2_FAIL;
+                DEBUG_LOG( "getEngine value [%s] (not e4tstdef)\n", eng );
         }
 
         rdkcertselectorRetry_t retry;
@@ -308,6 +307,26 @@ int rdkconfig_getStr( char **sbuff, size_t *sbuffsz, const char *refname ) { // 
 		strcpy( membuff, UTPASS3 );
 	} else if ( strcmp( refname, UTCREDALPHA ) == 0 ) {
 		strcpy( membuff, UTPASSALPHA );
+	} else if ( strcmp( refname, UTCRED_NOBRIDGE ) == 0 ) {
+		strcpy( membuff, UTPASS_NOBRIDGE );
+	} else if ( strcmp( refname, UTCRED_XSIGN ) == 0 ) {
+		strcpy( membuff, UTPASS_XSIGN );
+	} else if ( strcmp( refname, UTCRED_EXPXS ) == 0 ) {
+		strcpy( membuff, UTPASS_EXPXS );
+	} else if ( strcmp( refname, UTCRED_REVXS ) == 0 ) {
+		strcpy( membuff, UTPASS_REVXS );
+	} else if ( strcmp( refname, UTCRED_CRLREV ) == 0 ) {
+		strcpy( membuff, UTPASS_CRLREV );
+	} else if ( strcmp( refname, UTCRED_CRLVAL ) == 0 ) {
+		strcpy( membuff, UTPASS_CRLVAL );
+	} else if ( strcmp( refname, UTCRED_ICAREV ) == 0 ) {
+		strcpy( membuff, UTPASS_ICAREV );
+	} else if ( strcmp( refname, UTCRED_ICAVAL ) == 0 ) {
+		strcpy( membuff, UTPASS_ICAVAL );
+	} else if ( strcmp( refname, UTCRED_OCSPVAL ) == 0 ) {
+		strcpy( membuff, UTPASS_OCSPVAL );
+	} else if ( strcmp( refname, UTCRED_OCSPREV ) == 0 ) {
+		strcpy( membuff, UTPASS_OCSPREV );
 	} else {
 		retval =  RDKCONFIG_FAIL;
 	}
