@@ -30,7 +30,16 @@ sequence_descriptions = {
     5: "Sequence 5: When the first fails, the second is used. The second is used again on the next attempt. A network error (code 56) occurs. After recovery, the second is used twice.",
     6: "Sequence 6: If the first fails, the second is also failed, third is also failed then renew first, use the first",
     7: "Sequence 7: There are two objects running in parallel. For obj1, the first cert fails, so it switches to the second cert. Meanwhile, obj2 successfully uses the first cert without any fallback.",
-    8: "Sequence 8: Two consecutive get operations, Two consecutive set operations"
+    8: "Sequence 8: Two consecutive get operations, Two consecutive set operations",
+    9: "Sequence 9: XSign — both OldRoot and NewRoot present; cross-signed cert selected immediately and reused on next call.",
+    10: "Sequence 10: XSign — OldRoot expires; phase A old cert works then fails with CACERT; phase B new session with xs_new config: xsign cert succeeds via bridge.",
+    11: "Sequence 11: XSign — NewRoot absent from CA store; xsign cert fails with ISSUER, old cert also fails; NoCert state reached.",
+    12: "Sequence 12: CRL — leaf cert on CRL fails with CERTSTATUS; valid cert selected; revoked cert stays skipped on next call.",
+    13: "Sequence 13: CRL — intermediate CA revoked; leaf under revoked ICA fails with ISSUER; leaf under valid ICA selected.",
+    14: "Sequence 14: OCSP — server staples good OCSP response; cert selected without fallback and reused.",
+    15: "Sequence 15: OCSP — server staples revoked OCSP response; cert fails with CERTSTATUS; valid cert selected; revoked stays skipped.",
+    16: "Sequence 16: OCSP hard-fail — OCSP responder unreachable; fallback cert used; cert renewed (touch) simulates responder recovery; original cert reused.",
+    17: "Sequence 17: XSign bridge expiry — first call succeeds; bridge expires mid-session (ISSUER); new-root cert takes over; expxs cert renewed (touch) and reselected.",
 }
 def test_certsel_seq():
     if os.path.isfile(TEST_SETUP):

@@ -308,6 +308,31 @@ int rdkconfig_getStr( char **sbuff, size_t *sbuffsz, const char *refname ) { // 
 		strcpy( membuff, UTPASS3 );
 	} else if ( strcmp( refname, UTCREDALPHA ) == 0 ) {
 		strcpy( membuff, UTPASSALPHA );
+	/* ── cross-signed / CRL / OCSP credential refs (sequences 9-17) ── */
+	} else if ( strcmp( refname, XSCRED_XSIG ) == 0 ) {
+		strcpy( membuff, XSPASS_XSIG );
+	} else if ( strcmp( refname, XSCRED_OLD ) == 0 ) {
+		strcpy( membuff, XSPASS_OLD );
+	} else if ( strcmp( refname, XSCRED_NEW ) == 0 ) {
+		strcpy( membuff, XSPASS_NEW );
+	} else if ( strcmp( refname, XSCRED_EXPXS ) == 0 ) {
+		strcpy( membuff, XSPASS_EXPXS );
+	} else if ( strcmp( refname, XSCRED_NEWONLY ) == 0 ) {
+		strcpy( membuff, XSPASS_NEWONLY );
+	} else if ( strcmp( refname, CRLCRED_REVOKED ) == 0 ) {
+		strcpy( membuff, CRLPASS_REVOKED );
+	} else if ( strcmp( refname, CRLCRED_VALID ) == 0 ) {
+		strcpy( membuff, CRLPASS_VALID );
+	} else if ( strcmp( refname, ICACRED_REVOKED ) == 0 ) {
+		strcpy( membuff, ICAPASS_REVOKED );
+	} else if ( strcmp( refname, ICACRED_VALID ) == 0 ) {
+		strcpy( membuff, ICAPASS_VALID );
+	} else if ( strcmp( refname, OCSPCRED_VALID ) == 0 ) {
+		strcpy( membuff, OCSPPASS_VALID );
+	} else if ( strcmp( refname, OCSPCRED_REVOKED ) == 0 ) {
+		strcpy( membuff, OCSPPASS_REVOKED );
+	} else if ( strcmp( refname, OCSPCRED_NORESP ) == 0 ) {
+		strcpy( membuff, OCSPPASS_NORESP );
 	} else {
 		retval =  RDKCONFIG_FAIL;
 	}
