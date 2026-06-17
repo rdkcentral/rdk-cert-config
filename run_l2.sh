@@ -37,4 +37,4 @@ mkdir -p "$RESULT_DIR"
 
 # Run L2 Test cases
 #pytest --json-report --json-report-summary --json-report-file $RESULT_DIR/certsel_seq_run.json test/functional-tests/tests/test_certsel_seq.py
-pytest --json-report  --json-report-file $RESULT_DIR/certsel_seq_run.json test/functional-tests/tests/test_certsel_seq.py
+pytest -v --json-report  --json-report-file $RESULT_DIR/certsel_seq_run.json test/functional-tests/tests/test_certsel_seq.py

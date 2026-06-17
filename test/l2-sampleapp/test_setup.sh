@@ -37,3 +37,47 @@ echo "\nhrotengine=e4tst1" > ./l2/tst2hrot.properties
 echo "hrotprovider=e4tst1" > ./l2/bad3hrot.properties
 echo -n "GRP1,FRST,TMP,t1.tmp,pc1" > ./l2/tst1toolong.cfg
 
+# Cross-sign test setup
+mkdir -p ./l2/xs
+
+# Cross-sign placeholder P12 files
+touch ./l2/xs/client-nobridge.p12
+touch ./l2/xs/client-xsign.p12
+touch ./l2/xs/client-expxs.p12
+touch ./l2/xs/client-revxs.p12
+touch ./l2/xs/crl-revoked.p12
+touch ./l2/xs/crl-valid.p12
+touch ./l2/xs/ica-revoked-leaf.p12
+touch ./l2/xs/ica-valid-leaf.p12
+touch ./l2/xs/ocsp-valid.p12
+touch ./l2/xs/ocsp-revoked.p12
+
+# Cross-sign hrot.properties
+echo "hrotengine=e4xstest" > ./l2/xs/hrot.properties
+
+# Cross-sign certsel config files
+# Seq 9: single cert, no bridge (Root B absent)
+echo "XSGRP,NOBR,TMP,file://./l2/xs/client-nobridge.p12,pc_nobridge" > ./l2/xs/xs_nobridge.cfg
+
+# Seq 10: single cert, bridge present (Root B absent)
+echo "XSGRP,XSGN,TMP,file://./l2/xs/client-xsign.p12,pc_xsign" > ./l2/xs/xs_bridge.cfg
+
+# Seq 11: single cert, no bridge (all roots present)
+echo "XSGRP,NOBR,TMP,file://./l2/xs/client-nobridge.p12,pc_nobridge" > ./l2/xs/xs_allroots.cfg
+
+# Seq 12: single cert, expired bridge
+echo "XSGRP,EXPB,TMP,file://./l2/xs/client-expxs.p12,pc_expxs" > ./l2/xs/xs_expbridge.cfg
+
+# Seq 13: single cert, revoked bridge
+echo "XSGRP,REVB,TMP,file://./l2/xs/client-revxs.p12,pc_revxs" > ./l2/xs/xs_revbridge.cfg
+
+# Seq 14-15: CRL tests (revoked + valid certs in same group)
+echo "CRLGRP,CREV,TMP,file://./l2/xs/crl-revoked.p12,pc_crlrev" > ./l2/xs/xs_crl.cfg
+echo "CRLGRP,CVAL,TMP,file://./l2/xs/crl-valid.p12,pc_crlval" >> ./l2/xs/xs_crl.cfg
+echo "CRLGRP,IREV,TMP,file://./l2/xs/ica-revoked-leaf.p12,pc_icarev" >> ./l2/xs/xs_crl.cfg
+echo "CRLGRP,IVAL,TMP,file://./l2/xs/ica-valid-leaf.p12,pc_icaval" >> ./l2/xs/xs_crl.cfg
+
+# Seq 16-18: OCSP tests (valid + revoked certs in same group)
+echo "OCSPGRP,OVAL,TMP,file://./l2/xs/ocsp-valid.p12,pc_ocspval" > ./l2/xs/xs_ocsp.cfg
+echo "OCSPGRP,OREV,TMP,file://./l2/xs/ocsp-revoked.p12,pc_ocsprev" >> ./l2/xs/xs_ocsp.cfg
+

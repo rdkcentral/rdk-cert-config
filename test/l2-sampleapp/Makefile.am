@@ -20,6 +20,6 @@ bin_PROGRAMS = l2sampleapp
 
 AM_CFLAGS =  -Werror -Wall -Os $(CFLAGS) -I$(top_srcdir)/include/
 
-l2sampleapp_SOURCES = certsel_main.c  certsel_seq.c
+l2sampleapp_SOURCES = certsel_main.c  certsel_seq.c  certsel_xsign.c
 l2sampleapp_la_LDFLAGS = -no-undefined -shared
 l2sampleapp_LDADD = ../../CertSelector/src/libRdkCertSelector.la ../../CertSelector/src/.libs/libRdkCertSelector.so

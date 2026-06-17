@@ -28,6 +28,16 @@ int run_seq5cs();
 int run_seq6cs();
 int run_dualseq1cs();
 int run_badseq1();
+int run_seq9cs();
+int run_seq10cs();
+int run_seq11cs();
+int run_seq12cs();
+int run_seq13cs();
+int run_seq14cs();
+int run_seq15cs();
+int run_seq16cs();
+int run_seq17cs();
+int run_seq18cs();
 
 #define RDK_LOG(a1, a2, args...) fprintf(stderr, args)
 #define RDK_LOG_INFO 0
@@ -42,11 +52,14 @@ int run_badseq1();
 #define FILESCHEME "file://"
 #define CURLERR_LOCALCERT 58
 #define CURLERR_NONCERT 1
+#define CURLERR_ISSUER 80
+#define CURLERR_CERTSTATUS 91
 #define CURL_SUCCESS 0
 #define L2_SUCCESS 0
 #define L2_FAIL 1
 
 #define UTDIR "./l2"
+#define XSDIR UTDIR "/xs"
 #define CERTSEL_CFG UTDIR "/tst1certsel.cfg"
 #define HROT_PROP UTDIR "/tst1hrot.properties"
 #define HROT_PROP2 UTDIR "/tst2hrot.properties"
@@ -70,6 +83,55 @@ int run_badseq1();
 #define UTPASS2 UTCRED2 "pass"
 #define UTPASS3 UTCRED3 "pass"
 #define UTPASSALPHA UTCREDALPHA "pass"
+
+/* Cross-sign test config files */
+#define XS_NOBRIDGE_CFG  XSDIR "/xs_nobridge.cfg"
+#define XS_BRIDGE_CFG    XSDIR "/xs_bridge.cfg"
+#define XS_ALLROOTS_CFG  XSDIR "/xs_allroots.cfg"
+#define XS_EXPBRIDGE_CFG XSDIR "/xs_expbridge.cfg"
+#define XS_REVBRIDGE_CFG XSDIR "/xs_revbridge.cfg"
+#define XS_CRL_CFG       XSDIR "/xs_crl.cfg"
+#define XS_OCSP_CFG      XSDIR "/xs_ocsp.cfg"
+#define XS_HROTPROP      XSDIR "/hrot.properties"
+
+/* Cross-sign cert groups */
+#define XSGRP   "XSGRP"
+#define CRLGRP  "CRLGRP"
+#define OCSPGRP "OCSPGRP"
+
+/* Cross-sign P12 placeholder paths */
+#define XSCERT_NOBRIDGE   XSDIR "/client-nobridge.p12"
+#define XSCERT_XSIGN      XSDIR "/client-xsign.p12"
+#define XSCERT_EXPXS      XSDIR "/client-expxs.p12"
+#define XSCERT_REVXS      XSDIR "/client-revxs.p12"
+#define XSCERT_CRL_REVOKED XSDIR "/crl-revoked.p12"
+#define XSCERT_CRL_VALID   XSDIR "/crl-valid.p12"
+#define XSCERT_ICA_REVOKED XSDIR "/ica-revoked-leaf.p12"
+#define XSCERT_ICA_VALID   XSDIR "/ica-valid-leaf.p12"
+#define XSCERT_OCSP_VALID  XSDIR "/ocsp-valid.p12"
+#define XSCERT_OCSP_REVOKED XSDIR "/ocsp-revoked.p12"
+
+/* Cross-sign credential references and passwords */
+#define UTCRED_NOBRIDGE  "pc_nobridge"
+#define UTCRED_XSIGN     "pc_xsign"
+#define UTCRED_EXPXS     "pc_expxs"
+#define UTCRED_REVXS     "pc_revxs"
+#define UTCRED_CRLREV    "pc_crlrev"
+#define UTCRED_CRLVAL    "pc_crlval"
+#define UTCRED_ICAREV    "pc_icarev"
+#define UTCRED_ICAVAL    "pc_icaval"
+#define UTCRED_OCSPVAL   "pc_ocspval"
+#define UTCRED_OCSPREV   "pc_ocsprev"
+#define UTPASS_NOBRIDGE  UTCRED_NOBRIDGE "pass"
+#define UTPASS_XSIGN     UTCRED_XSIGN "pass"
+#define UTPASS_EXPXS     UTCRED_EXPXS "pass"
+#define UTPASS_REVXS     UTCRED_REVXS "pass"
+#define UTPASS_CRLREV    UTCRED_CRLREV "pass"
+#define UTPASS_CRLVAL    UTCRED_CRLVAL "pass"
+#define UTPASS_ICAREV    UTCRED_ICAREV "pass"
+#define UTPASS_ICAVAL    UTCRED_ICAVAL "pass"
+#define UTPASS_OCSPVAL   UTCRED_OCSPVAL "pass"
+#define UTPASS_OCSPREV   UTCRED_OCSPREV "pass"
 
 #define GETSZ 50
 #define RDKCONFIG_OK 0

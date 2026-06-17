@@ -56,6 +56,36 @@ int main(int argc, char* argv[])
                 case 8:
                         ret= run_badseq1();
                         break;
+                case 9:
+                        ret= run_seq9cs();
+                        break;
+                case 10:
+                        ret= run_seq10cs();
+                        break;
+                case 11:
+                        ret= run_seq11cs();
+                        break;
+                case 12:
+                        ret= run_seq12cs();
+                        break;
+                case 13:
+                        ret= run_seq13cs();
+                        break;
+                case 14:
+                        ret= run_seq14cs();
+                        break;
+                case 15:
+                        ret= run_seq15cs();
+                        break;
+                case 16:
+                        ret= run_seq16cs();
+                        break;
+                case 17:
+                        ret= run_seq17cs();
+                        break;
+                case 18:
+                        ret= run_seq18cs();
+                        break;
                 default:
                         ret = seq;
         }
