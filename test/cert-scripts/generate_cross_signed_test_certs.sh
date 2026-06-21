@@ -56,11 +56,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Save caller-supplied CERT_DIR before sourcing cert_utils.sh.
+# cert_utils.sh unconditionally sets CERT_DIR="/etc/pki" which would
+# override any value the caller passed via environment variable.
+_CALLER_CERT_DIR="${CERT_DIR:-}"
+
 # Import utility functions and sub-scripts
 source "${SCRIPT_DIR}/cert_utils.sh"
 
 # ── Environment variable defaults ────────────────────────────────────────────
-CERT_DIR="${CERT_DIR:-/etc/pki/test-xs}"
+# Restore the caller's CERT_DIR (cert_utils.sh would have overwritten it).
+CERT_DIR="${_CALLER_CERT_DIR:-/etc/pki/test-xs}"
 OUT_DIR="${OUT_DIR:-./l2/xs}"
 BASE_VALIDITY="${BASE_VALIDITY:-365}"
 XS_EXPIRY="${XS_EXPIRY:-1}"

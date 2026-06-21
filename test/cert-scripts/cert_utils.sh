@@ -19,8 +19,8 @@
 # Utility functions for certificate generation
 # This file contains common functions used by create_ca.sh and create_leaf_cert.sh
 
-# Default directory for certificates
-CERT_DIR="/etc/pki"
+# Default directory for certificates (preserve caller's value if already set)
+CERT_DIR="${CERT_DIR:-/etc/pki}"
 
 # Echo function that prints only when DEBUG_ENABLED is set
 echo_t() {
