@@ -63,14 +63,15 @@ jobs:
           path: 'rdk-cert-config'
 
       # ── Checkout: docker-device-mgt-service-test for image builds ──────────
-      # Uses topic/RDK-61158_old which carries the CRL-L3 server code
-      # (crl-mtls-server.js, crl-control.js, updated certs.sh, entrypoint.sh,
-      # compose.yaml port exposure).  Change to 'develop' once this branch is
-      # merged into docker-device-mgt-service-test develop.
+      # Uses Lasya-Prakarsha-D-V fork at topic/RDK-61158_old which carries the
+      # CRL-L3 server code (crl-mtls-server.js, crl-control.js, updated
+      # certs.sh, entrypoint.sh, compose.yaml port exposure).
+      # Change repository to 'rdkcentral/docker-device-mgt-service-test' once
+      # this branch is merged into the upstream develop.
       - name: Checkout docker-device-mgt-service-test
         uses: actions/checkout@v4
         with:
-          repository: 'rdkcentral/docker-device-mgt-service-test'
+          repository: 'Lasya-Prakarsha-D-V/docker-device-mgt-service-test'
           ref: 'topic/RDK-61158_old'
           path: 'device-management-service'
 
@@ -167,7 +168,8 @@ jobs:
       - name: Copy L3 test results to runner
         if: always()
         run: |
-          docker cp native-platform:/tmp/l3_test_report /tmp/L3_TEST_RESULTS || true
+          mkdir -p /tmp/L3_TEST_RESULTS
+          docker cp native-platform:/tmp/l3_test_report/. /tmp/L3_TEST_RESULTS/ || echo "No results to copy"
           ls -l /tmp/L3_TEST_RESULTS || echo "No results directory found"
 
       - name: Set up Docker Buildx (for CI upload container)
