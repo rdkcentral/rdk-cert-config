@@ -48,9 +48,11 @@ pytestmark = pytest.mark.skipif(
 MOCKXCONF_HOST   = os.environ.get("MOCKXCONF_HOST", "mockxconf")
 CRL_MTLS_PORT    = 50061
 CRL_CONTROL_PORT = 50062
+OCSP_STAPLING_PORT = 50064
 
 BASE_URL = f"https://{MOCKXCONF_HOST}:{CRL_MTLS_PORT}"
 CTRL_URL = f"http://{MOCKXCONF_HOST}:{CRL_CONTROL_PORT}"
+OCSP_URL = f"https://{MOCKXCONF_HOST}:{OCSP_STAPLING_PORT}"
 
 # Client cert assets (copied by native-platform certs.sh from shared volume)
 CRL_CLIENT_P12    = "/opt/certs/crl/crl-client.p12"
@@ -211,4 +213,71 @@ def test_l3_xsign_expired_bridge_fails():
     assert elapsed < 5.0, (
         f"Test took {elapsed:.1f}s — expected under 5s (possible TLS hang on "
         "expired bridge cert)."
+    )
+
+
+# ─── OCSP Stapling tests ───────────────────────────────────────────────────────
+
+
+def test_l3_ocsp_staple_present():
+    """
+    OCSP Stapling – happy path.
+
+    curl --cert-status requests a TLS status_request (RFC 6066).  The server
+    on port 50064 must staple a valid OCSP response into the handshake.
+    The -vv trace must contain "SSL certificate status: good".
+
+    Architecture owner spec:
+      "Attempt a curl connection with --cert-status & -vv option from
+       native-platform to server instance.  Verify the connection trace that
+       the server responds to OCSP request."
+    """
+    cmd = [
+        "curl",
+        "--cert-status",          # request OCSP stapling; fail if not present
+        "-vv",                    # verbose — staple status appears in stderr
+        "--silent",
+        "--fail-with-body",
+        f"{OCSP_URL}/health",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+
+    assert result.returncode == 0, (
+        f"curl --cert-status failed (rc={result.returncode}).\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}\n"
+        "Server must staple a valid OCSP response when ENABLE_CRL_L3=true."
+    )
+    # curl prints "SSL certificate status: good" in verbose output when the
+    # server staples a valid OCSP response with status=good.
+    assert "SSL certificate status: good" in result.stderr, (
+        "Expected 'SSL certificate status: good' in curl -vv output.\n"
+        f"stderr: {result.stderr}"
+    )
+
+
+def test_l3_ocsp_staple_absent_rejected():
+    """
+    OCSP Stapling – curl --cert-status must fail when connecting to a server
+    that does NOT staple.
+
+    This is a negative control: the CRL mTLS server on port 50061 does not
+    implement OCSP stapling.  curl --cert-status must fail because the server
+    provides no OCSP response, proving that the test_l3_ocsp_staple_present
+    assertion is meaningful and not a false positive.
+    """
+    cmd = [
+        "curl",
+        "--cert-status",          # will fail if no OCSP staple is returned
+        "--silent",
+        "--fail-with-body",
+        "--cert",      CRL_CLIENT_P12,
+        "--cert-type", "P12",
+        "--pass",      CERT_PASS,
+        f"{BASE_URL}/health",     # port 50061 — no OCSP stapling
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+
+    assert result.returncode != 0, (
+        "Expected curl --cert-status to fail against a non-stapling server, "
+        f"but it succeeded.\nstderr: {result.stderr}"
     )

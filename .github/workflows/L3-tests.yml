@@ -141,6 +141,8 @@ jobs:
             --name mockxconf \
             -p 50061:50061 \
             -p 50062:50062 \
+            -p 50063:50063 \
+            -p 50064:50064 \
             -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME \
             -e ENABLE_CRL_L3=true \
             localhost:5000/mockxconf:l3test
