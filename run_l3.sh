@@ -16,7 +16,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# RDK-61158: L3 CRL mTLS + Cross-signed PKI integration test runner.
+# L3 CRL mTLS + Cross-signed PKI integration test runner.
 #
 # Executed *inside* the native-platform container, analogous to run_l2.sh
 # for L2 tests.  The CI workflow (L3-tests.yml) starts mockxconf and

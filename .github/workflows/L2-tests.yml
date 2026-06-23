@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
@@ -24,40 +24,78 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
       - name: Pull docker images
         run: |
           docker pull ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
           docker pull ghcr.io/rdkcentral/docker-rdk-ci:latest
 
-      - name: Start l2-container service
+      # ── L2 Tests ───────────────────────────────────────────────────────────
+      - name: Start native-platform for L2
         run: |
           docker run -d --name native-platform -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
 
-      - name: Enter Inside Platform native container and run L2 Test
+      - name: Run L2 Test
         run: |
-          docker exec -i native-platform /bin/bash -c "cd /mnt/L2_CONTAINER_SHARED_VOLUME/ && export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu:/lib/aarch64-linux-gnu:/usr/local/lib: && sh run_l2.sh" 
+          docker exec -i native-platform /bin/bash -c "cd /mnt/L2_CONTAINER_SHARED_VOLUME/ && export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu:/lib/aarch64-linux-gnu:/usr/local/lib: && sh run_l2.sh"
 
-      - name: Copy l2 test results to runner 
+      - name: Copy L2 test results
         run: |
           docker cp native-platform:/tmp/l2_test_report /tmp/L2_TEST_RESULTS
-          ls -l
           ls -l /tmp/L2_TEST_RESULTS
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+      - name: Stop L2 containers
+        run: |
+          docker rm -f native-platform || true
+          rm -rf ${{ github.workspace }}/shared_certs
+
+      # ── L3 Tests ───────────────────────────────────────────────────────────
+      # TEMPORARY: Build mockxconf from fork branch and volume-mount updated
+      # certs.sh into native-platform until docker-device-mgt-service-test PR
+      # merges and GHCR images are rebuilt with CRL-L3 support.
+      # Once merged, replace with:
+      #   docker pull ghcr.io/rdkcentral/docker-device-mgt-service-test/mockxconf:latest
+      #   and remove the -v .../certs.sh volume-mount from native-platform.
+      - name: Checkout docker-device-mgt-service-test (temporary)
+        uses: actions/checkout@v4
         with:
-          install: true
+          repository: 'Lasya-Prakarsha-D-V/docker-device-mgt-service-test'
+          ref: 'topic/RDK-61158_old'
+          path: 'docker-device-mgt'
 
-      - name: Run CI container
-        run: docker run -e AUTOMATICS_UNAME=${{ secrets.AUTOMATICS_UNAME }} -e AUTOMATICS_PASSCODE=${{ secrets.AUTOMATICS_PASSCODE }} -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME --name ci-container -d ghcr.io/rdkcentral/docker-rdk-ci:latest tail -f /dev/null
+      - name: Build mockxconf image (temporary)
+        run: |
+          docker build -t mockxconf:latest docker-device-mgt/mock-xconf
 
+      - name: Start mock-xconf for L3
+        run: |
+          docker run -d --name mockxconf -e ENABLE_CRL_L3=true -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME mockxconf:latest
+          sleep 60
+
+      - name: Start native-platform for L3
+        run: |
+          docker run -d --name native-platform --link mockxconf -e ENABLE_CRL_L3=true -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME -v ${{ github.workspace }}/docker-device-mgt/native-platform/certs.sh:/usr/local/bin/certs.sh ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
+
+      - name: Run L3 Test
+        run: |
+          docker exec -i native-platform /bin/bash -c "cd /mnt/L2_CONTAINER_SHARED_VOLUME/ && export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu:/lib/aarch64-linux-gnu:/usr/local/lib: && sh run_l3.sh"
+
+      - name: Copy L3 test results
+        run: |
+          mkdir -p /tmp/L3_TEST_RESULTS
+          docker cp native-platform:/tmp/l3_test_report/. /tmp/L3_TEST_RESULTS/ || echo "No results to copy"
+          ls -l /tmp/L3_TEST_RESULTS
+
+      # ── Upload Results ─────────────────────────────────────────────────────
       - name: Upload results
         if: github.repository_owner == 'rdkcentral'
         run: |
+          docker run -e AUTOMATICS_UNAME=${{ secrets.AUTOMATICS_UNAME }} -e AUTOMATICS_PASSCODE=${{ secrets.AUTOMATICS_PASSCODE }} -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME --name ci-container -d ghcr.io/rdkcentral/docker-rdk-ci:latest tail -f /dev/null
           docker cp /tmp/L2_TEST_RESULTS ci-container:/tmp/L2_TEST_RESULTS
-          docker exec -i ci-container bash -c "echo 'Contents in workspace directory' && ls -l && echo '===============================' && echo 'Contents in /tmp/L2_TEST_RESULTS' && ls -l /tmp/L2_TEST_RESULTS && echo '===============================' && git config --global --add safe.directory /mnt/L2_CONTAINER_SHARED_VOLUME && gtest-json-result-push.py /tmp/L2_TEST_RESULTS https://rdkeorchestrationservice.apps.cloud.comcast.net/rdke_orchestration_api/push_unit_test_results /mnt/L2_CONTAINER_SHARED_VOLUME"
+          docker cp /tmp/L3_TEST_RESULTS ci-container:/tmp/L3_TEST_RESULTS
+          docker exec -i ci-container bash -c "git config --global --add safe.directory /mnt/L2_CONTAINER_SHARED_VOLUME && gtest-json-result-push.py /tmp/L2_TEST_RESULTS https://rdkeorchestrationservice.apps.cloud.comcast.net/rdke_orchestration_api/push_unit_test_results /mnt/L2_CONTAINER_SHARED_VOLUME && gtest-json-result-push.py /tmp/L3_TEST_RESULTS https://rdkeorchestrationservice.apps.cloud.comcast.net/rdke_orchestration_api/push_unit_test_results /mnt/L2_CONTAINER_SHARED_VOLUME"
 
-  
+      - name: Cleanup
+        if: always()
+        run: |
+          docker logs mockxconf || true
+          docker rm -f mockxconf native-platform ci-container || true

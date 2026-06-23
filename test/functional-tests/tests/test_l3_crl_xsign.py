@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 """
-L3 CRL / Cross-signed mTLS test driver  (RDK-61158)
+L3 CRL / Cross-signed mTLS test driver
 
 Runs *inside* the native-platform container where:
   - curl is available with OpenSSL mTLS support
