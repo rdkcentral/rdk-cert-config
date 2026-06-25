@@ -33,6 +33,9 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCRIPT_DIR}/cert_utils.sh"
+
 XS_CERT_DIR="${XS_CERT_DIR:-/etc/pki/test-xs}"
 XS_OUT_DIR="${XS_OUT_DIR:-/etc/xconf/certs/xs}"
 CERT_PASSWORD="${CERT_PASSWORD:-changeit}"
@@ -43,36 +46,16 @@ echo "[xs-post] Post-processing XS PKI: generating CRLs and expired bridge..."
 for _CA_DIR in \
     "${XS_CERT_DIR}/Test-XS-OldRoot" \
     "${XS_CERT_DIR}/Test-XS-OldRoot/Test-XS-OldICA" \
-    "${XS_CERT_DIR}/Test-XS-OldRoot/Test-XS-RevokedICA" \
-    "${XS_CERT_DIR}/Test-XS-NewRoot" \
-    "${XS_CERT_DIR}/Test-XS-NewRoot/Test-XS-NewICA"; do
+    "${XS_CERT_DIR}/Test-XS-NewRoot"; do
     _CA_NAME=$(basename "${_CA_DIR}")
     _CA_CERT="${_CA_DIR}/certs/${_CA_NAME}.pem"
     _CA_KEY="${_CA_DIR}/private/${_CA_NAME}.key"
     [ -f "${_CA_CERT}" ] && [ -f "${_CA_KEY}" ] || continue
-    mkdir -p "${_CA_DIR}/crl"
-    [ -f "${_CA_DIR}/crlnumber" ] || printf "01\n" > "${_CA_DIR}/crlnumber"
-    cat > /tmp/_xs_ca.cnf << XSCNFEOF
-[ ca ]
-default_ca = CA_default
-[ CA_default ]
-database         = ${_CA_DIR}/index.txt
-serial           = ${_CA_DIR}/serial
-crlnumber        = ${_CA_DIR}/crlnumber
-certificate      = ${_CA_CERT}
-private_key      = ${_CA_KEY}
-new_certs_dir    = ${_CA_DIR}/certs
-default_md       = sha256
-default_crl_days = 365
-policy           = policy_loose
-[ policy_loose ]
-commonName = supplied
-XSCNFEOF
-    openssl ca -config /tmp/_xs_ca.cnf -gencrl \
-        -out "${_CA_DIR}/crl/${_CA_NAME}.crl.pem" -batch 2>/dev/null && \
-        cp "${_CA_DIR}/crl/${_CA_NAME}.crl.pem" "${XS_OUT_DIR}/${_CA_NAME}.crl.pem"
+
+    generate_empty_crl "${_CA_DIR}" "${_CA_NAME}" \
+        "${_CA_DIR}/crl/${_CA_NAME}.crl.pem" 365
+    cp "${_CA_DIR}/crl/${_CA_NAME}.crl.pem" "${XS_OUT_DIR}/${_CA_NAME}.crl.pem"
 done
-rm -f /tmp/_xs_ca.cnf
 echo "[xs-post] XS PKI CRLs generated"
 
 # ── Create truly-expired bridge cert ─────────────────────────────────────────
@@ -83,38 +66,20 @@ _OLDROOT_KEY="${XS_CERT_DIR}/Test-XS-OldRoot/private/Test-XS-OldRoot.key"
 _EXPXS_BRIDGE="${XS_CERT_DIR}/Test-XS-NewRoot/cross-signed/OldRoot-expxs.pem"
 _NR_DIR="${XS_CERT_DIR}/Test-XS-NewRoot"
 
-set +e
 _OLD_SUBJ=$(openssl x509 -in "${_OLDROOT_CERT}" -noout -subject -nameopt compat 2>/dev/null | sed 's/^subject=//')
 
-cat > /tmp/_newroot_ca.cnf << NRCNFEOF
-[ ca ]
-default_ca = CA_default
-[ CA_default ]
-dir            = ${_NR_DIR}
-certificate    = ${_NEWROOT_CERT}
-private_key    = ${_NEWROOT_KEY}
-new_certs_dir  = ${_NR_DIR}/certs
-database       = ${_NR_DIR}/index.txt
-serial         = ${_NR_DIR}/serial
-crlnumber      = ${_NR_DIR}/crlnumber
-default_md     = sha256
-preserve       = no
-policy         = policy_loose
-x509_extensions = v3_ca
-[ policy_loose ]
-commonName             = supplied
-organizationName       = optional
-organizationalUnitName = optional
-countryName            = optional
-stateOrProvinceName    = optional
-localityName           = optional
-UID                    = optional
+# Ensure NewRoot has a CA DB config for signing
+create_ca_db_config "${_NR_DIR}" "Test-XS-NewRoot"
+
+# Append v3_ca extensions to the existing config
+cat >> "${_NR_DIR}/openssl.cnf" << 'EXTEOF'
+
 [ v3_ca ]
 basicConstraints       = critical,CA:TRUE
 keyUsage               = critical,digitalSignature,cRLSign,keyCertSign
 subjectKeyIdentifier   = hash
 authorityKeyIdentifier = keyid:always,issuer
-NRCNFEOF
+EXTEOF
 
 openssl req -new \
     -key "${_OLDROOT_KEY}" \
@@ -122,7 +87,7 @@ openssl req -new \
     -subj "${_OLD_SUBJ}" 2>/dev/null
 
 openssl ca \
-    -config /tmp/_newroot_ca.cnf \
+    -config "${_NR_DIR}/openssl.cnf" \
     -in /tmp/_oldroot_expired.csr \
     -out "${_EXPXS_BRIDGE}" \
     -startdate 20240101000000Z \
@@ -130,32 +95,25 @@ openssl ca \
     -extensions v3_ca \
     -batch \
     -notext 2>/dev/null
-_RC=$?
-rm -f /tmp/_oldroot_expired.csr /tmp/_newroot_ca.cnf
+rm -f /tmp/_oldroot_expired.csr
 
-if [ ${_RC} -eq 0 ] && [ -s "${_EXPXS_BRIDGE}" ]; then
-    # Re-bundle client-expxs.p12 with the expired bridge
-    _EXPXS_KEY=$(find "${XS_CERT_DIR}" -name "client-expxs.key" 2>/dev/null | head -1)
-    _EXPXS_PEM=$(find "${XS_CERT_DIR}" -name "client-expxs.pem" 2>/dev/null | head -1)
-    _OLD_ICA="${XS_CERT_DIR}/Test-XS-OldRoot/Test-XS-OldICA/certs/Test-XS-OldICA.pem"
-    _CHAIN_TMP="/tmp/_expxs_chain.pem"
-    cat "${_OLD_ICA}" "${_OLDROOT_CERT}" "${_EXPXS_BRIDGE}" "${_NEWROOT_CERT}" > "${_CHAIN_TMP}"
-    if [ -n "${_EXPXS_KEY}" ] && [ -n "${_EXPXS_PEM}" ]; then
-        PKCS12_PASS="${CERT_PASSWORD}" openssl pkcs12 -export \
-            -in "${_EXPXS_PEM}" \
-            -inkey "${_EXPXS_KEY}" \
-            -certfile "${_CHAIN_TMP}" \
-            -out "${XS_OUT_DIR}/client-expxs.p12" \
-            -name "client-expxs" \
-            -passout env:PKCS12_PASS 2>/dev/null
-        chmod 644 "${XS_OUT_DIR}/client-expxs.p12"
-    fi
-    rm -f "${_CHAIN_TMP}"
-    echo "[xs-post] Replaced expired bridge with truly-expired cert (2024-01-01/02)"
-else
-    echo "[xs-post] Warning: Could not create expired bridge — using 1-day fallback"
-fi
-set -e
+# Re-bundle client-expxs.p12 with the expired bridge
+_EXPXS_KEY=$(find "${XS_CERT_DIR}" -name "client-expxs.key" 2>/dev/null | head -1)
+_EXPXS_PEM=$(find "${XS_CERT_DIR}" -name "client-expxs.pem" 2>/dev/null | head -1)
+_OLD_ICA="${XS_CERT_DIR}/Test-XS-OldRoot/Test-XS-OldICA/certs/Test-XS-OldICA.pem"
+_CHAIN_TMP="/tmp/_expxs_chain.pem"
+cat "${_OLD_ICA}" "${_OLDROOT_CERT}" "${_EXPXS_BRIDGE}" "${_NEWROOT_CERT}" > "${_CHAIN_TMP}"
+
+PKCS12_PASS="${CERT_PASSWORD}" openssl pkcs12 -export \
+    -in "${_EXPXS_PEM}" \
+    -inkey "${_EXPXS_KEY}" \
+    -certfile "${_CHAIN_TMP}" \
+    -out "${XS_OUT_DIR}/client-expxs.p12" \
+    -name "client-expxs" \
+    -passout env:PKCS12_PASS 2>/dev/null
+chmod 644 "${XS_OUT_DIR}/client-expxs.p12"
+rm -f "${_CHAIN_TMP}"
+echo "[xs-post] Replaced expired bridge with truly-expired cert (2024-01-01/02)"
 
 # Copy NewRoot for trust anchor
 [ -f "${_NEWROOT_CERT}" ] && cp "${_NEWROOT_CERT}" "${XS_OUT_DIR}/NewRoot.pem"

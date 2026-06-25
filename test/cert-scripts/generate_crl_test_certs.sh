@@ -18,276 +18,148 @@
 ##########################################################################
 # generate_crl_test_certs.sh
 #
-# Generates the CRL mTLS PKI used by L3 CRL revocation tests.
+# Generates the CRL mTLS PKI used by L3 CRL revocation and OCSP tests.
+# Calls create_ca.sh, create_leaf_cert.sh, and cert_utils.sh helpers.
 #
 # PKI hierarchy produced:
 #
 #   Test-CRL-Root (ECC P-256, self-signed)
 #     └── Test-CRL-ICA
-#           ├── crl-server.pem   (serverAuth, SAN=mockxconf)
+#           ├── crl-server.pem   (serverAuth, SAN=mockxconf, NOT in CA DB)
 #           ├── crl-client.pem   (clientAuth, tracked in CA DB for revocation)
-#           └── crl-client.p12   (PKCS#12 bundle for curl --cert)
-#
-# Outputs:
-#   ${OUT_DIR}/crl-server.key          server private key
-#   ${OUT_DIR}/crl-server.pem          server TLS cert
-#   ${OUT_DIR}/Test-CRL-ICA.pem        ICA cert (for server CA trust)
-#   ${OUT_DIR}/Test-CRL-Root.pem       root cert (for client trust store)
-#   ${OUT_DIR}/Test-CRL-ICA.crl.pem    initial empty CRL (ICA-level)
-#   ${OUT_DIR}/Test-CRL-Root.crl.pem   initial empty CRL (root-level)
-#   ${OUT_DIR}/crl-client.pem          client cert
-#   ${OUT_DIR}/crl-client.key          client private key
-#   ${OUT_DIR}/crl-client.p12          client PKCS#12 bundle
-#   ${OUT_DIR}/crl-ica-chain.pem       ICA + Root chain
+#           ├── ocsp-server.pem  (serverAuth, AIA→OCSP, tracked in CA DB)
+#           └── ocsp-responder.pem (OCSPSigning, NOT in CA DB)
 #
 # Environment variables:
-#   CERT_DIR   Root directory for CA material    (default: /etc/pki/test-crl)
-#   OUT_DIR    Target for final output files     (default: /etc/xconf/certs/crl)
-#   SERVER_CN  Common Name + SAN for server cert (default: mockxconf)
+#   CERT_DIR        Root directory for CA material    (default: /etc/pki/test-crl)
+#   OUT_DIR         Target for server output files    (default: /etc/xconf/certs/crl)
+#   CLIENT_OUT_DIR  Target for client cert assets     (default: OUT_DIR)
+#   OCSP_OUT_DIR    Target for OCSP server certs      (default: OUT_DIR)
+#   SERVER_CN       Common Name + SAN for server cert (default: mockxconf)
 ##########################################################################
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # ── Defaults ──────────────────────────────────────────────────────────────────
 CERT_DIR="${CERT_DIR:-/etc/pki/test-crl}"
 OUT_DIR="${OUT_DIR:-/etc/xconf/certs/crl}"
+CLIENT_OUT_DIR="${CLIENT_OUT_DIR:-${OUT_DIR}}"
+OCSP_OUT_DIR="${OCSP_OUT_DIR:-${OUT_DIR}}"
 SERVER_CN="${SERVER_CN:-mockxconf}"
 CERT_PASSWORD="${CERT_PASSWORD:-changeit}"
 
-CRL_ROOT_DIR="${CERT_DIR}/Test-CRL-Root"
-CRL_ICA_DIR="${CRL_ROOT_DIR}/Test-CRL-ICA"
+CRL_ROOT="Test-CRL-Root"
+CRL_ICA="Test-CRL-ICA"
+CRL_ROOT_DIR="${CERT_DIR}/${CRL_ROOT}"
+CRL_ICA_DIR="${CRL_ROOT_DIR}/${CRL_ICA}"
 
 echo "[crl-pki] Generating CRL mTLS test PKI..."
 echo "[crl-pki]   CERT_DIR=${CERT_DIR}"
 echo "[crl-pki]   OUT_DIR=${OUT_DIR}"
+echo "[crl-pki]   CLIENT_OUT_DIR=${CLIENT_OUT_DIR}"
+echo "[crl-pki]   OCSP_OUT_DIR=${OCSP_OUT_DIR}"
 echo "[crl-pki]   SERVER_CN=${SERVER_CN}"
+mkdir -p "${CERT_DIR}"
+mkdir -p "${OUT_DIR}"
 
-# ── Directory structure ───────────────────────────────────────────────────────
-mkdir -p "${CRL_ROOT_DIR}/certs" "${CRL_ROOT_DIR}/private" "${CRL_ROOT_DIR}/crl" \
-         "${CRL_ICA_DIR}/certs"  "${CRL_ICA_DIR}/private"  "${CRL_ICA_DIR}/crl"  \
-         "${CRL_ICA_DIR}/csr"    "${OUT_DIR}"
-chmod 700 "${CRL_ROOT_DIR}/private" "${CRL_ICA_DIR}/private"
+# ── 1. Create Root CA and Intermediate CA ─────────────────────────────────────
+CERT_DIR="${CERT_DIR}" "${SCRIPT_DIR}/create_ca.sh" \
+    --ca-name "${CRL_ROOT}" --parent-ca "${CRL_ROOT}" \
+    --validity 365 --key-type ecc
 
-# ── CA database files ─────────────────────────────────────────────────────────
-touch "${CRL_ICA_DIR}/index.txt"
-printf "01\n" > "${CRL_ICA_DIR}/serial"
-printf "01\n" > "${CRL_ICA_DIR}/crlnumber"
-
-# ── openssl.cnf for ICA (used by openssl ca -revoke / -gencrl) ────────────────
-cat > "${CRL_ICA_DIR}/openssl.cnf" << CNFEOF
-[ ca ]
-default_ca = CA_default
-
-[ CA_default ]
-dir              = ${CRL_ICA_DIR}
-database         = \$dir/index.txt
-serial           = \$dir/serial
-crlnumber        = \$dir/crlnumber
-certificate      = \$dir/certs/Test-CRL-ICA.pem
-private_key      = \$dir/private/Test-CRL-ICA.key
-new_certs_dir    = \$dir/certs
-default_md       = sha256
-preserve         = no
-policy           = policy_loose
-default_crl_days = 365
-default_days     = 365
-
-[ policy_loose ]
-countryName             = optional
-stateOrProvinceName     = optional
-organizationName        = optional
-organizationalUnitName  = optional
-commonName              = supplied
-emailAddress            = optional
-
-[ req ]
-default_bits = 2048
-prompt = no
-default_md = sha256
-distinguished_name = dn
-
-[ dn ]
-CN = crl-client
-
-[ client_cert ]
-basicConstraints       = CA:FALSE
-keyUsage               = critical, digitalSignature, keyEncipherment
-extendedKeyUsage       = critical, clientAuth
-subjectKeyIdentifier   = hash
-authorityKeyIdentifier = keyid:always
-
-[ v3_ocsp_server ]
-basicConstraints       = CA:FALSE
-keyUsage               = critical,digitalSignature,keyEncipherment
-extendedKeyUsage       = serverAuth
-subjectKeyIdentifier   = hash
-subjectAltName         = DNS:${SERVER_CN}
-authorityInfoAccess    = OCSP;URI:http://127.0.0.1:50063
-CNFEOF
-
-# ── Root CA (self-signed) ─────────────────────────────────────────────────────
-openssl ecparam -name prime256v1 -genkey -noout \
-    -out "${CRL_ROOT_DIR}/private/Test-CRL-Root.key" 2>/dev/null
-chmod 600 "${CRL_ROOT_DIR}/private/Test-CRL-Root.key"
-
-openssl req -new -x509 \
-    -key "${CRL_ROOT_DIR}/private/Test-CRL-Root.key" \
-    -out "${CRL_ROOT_DIR}/certs/Test-CRL-Root.pem" \
-    -days 365 -sha256 \
-    -subj "/C=US/O=RDK Test/CN=Test-CRL-Root" \
-    -addext "basicConstraints=critical,CA:TRUE" \
-    -addext "keyUsage=critical,digitalSignature,cRLSign,keyCertSign" \
-    -addext "subjectKeyIdentifier=hash" 2>/dev/null
-
-# ── Root CA database and empty CRL ───────────────────────────────────────────
-touch "${CRL_ROOT_DIR}/index.txt"
-printf "01\n" > "${CRL_ROOT_DIR}/crlnumber"
-cat > "${CRL_ROOT_DIR}/openssl.cnf" << ROOTCAEOF
-[ ca ]
-default_ca = CA_default
-[ CA_default ]
-database         = ${CRL_ROOT_DIR}/index.txt
-serial           = ${CRL_ROOT_DIR}/serial
-crlnumber        = ${CRL_ROOT_DIR}/crlnumber
-certificate      = ${CRL_ROOT_DIR}/certs/Test-CRL-Root.pem
-private_key      = ${CRL_ROOT_DIR}/private/Test-CRL-Root.key
-new_certs_dir    = ${CRL_ROOT_DIR}/certs
-default_md       = sha256
-default_crl_days = 365
-policy           = policy_loose
-[ policy_loose ]
-commonName = supplied
-ROOTCAEOF
-openssl ca -config "${CRL_ROOT_DIR}/openssl.cnf" -gencrl \
-    -out "${CRL_ROOT_DIR}/crl/Test-CRL-Root.crl.pem" -batch 2>/dev/null
-
-# ── Intermediate CA (signed by Root) ─────────────────────────────────────────
-openssl ecparam -name prime256v1 -genkey -noout \
-    -out "${CRL_ICA_DIR}/private/Test-CRL-ICA.key" 2>/dev/null
-chmod 600 "${CRL_ICA_DIR}/private/Test-CRL-ICA.key"
-openssl req -new \
-    -key "${CRL_ICA_DIR}/private/Test-CRL-ICA.key" \
-    -out "${CRL_ICA_DIR}/csr/Test-CRL-ICA.csr" \
-    -subj "/C=US/O=RDK Test/CN=Test-CRL-ICA" 2>/dev/null
-openssl x509 -req \
-    -in "${CRL_ICA_DIR}/csr/Test-CRL-ICA.csr" \
-    -CA "${CRL_ROOT_DIR}/certs/Test-CRL-Root.pem" \
-    -CAkey "${CRL_ROOT_DIR}/private/Test-CRL-Root.key" \
-    -CAcreateserial \
-    -out "${CRL_ICA_DIR}/certs/Test-CRL-ICA.pem" \
-    -days 365 -sha256 \
-    -extfile <(printf "basicConstraints=critical,CA:TRUE,pathlen:0\nkeyUsage=critical,digitalSignature,cRLSign,keyCertSign\nsubjectKeyIdentifier=hash") 2>/dev/null
+CERT_DIR="${CERT_DIR}" "${SCRIPT_DIR}/create_ca.sh" \
+    --ca-name "${CRL_ICA}" --parent-ca "${CRL_ROOT}" \
+    --validity 365 --key-type ecc
 
 echo "[crl-pki] Root CA and ICA created"
 
-# ── Server cert (signed by ICA, NOT tracked in CA DB) ────────────────────────
-openssl ecparam -name prime256v1 -genkey -noout \
-    -out "${OUT_DIR}/crl-server.key" 2>/dev/null
-chmod 600 "${OUT_DIR}/crl-server.key"
-openssl req -new \
-    -key "${OUT_DIR}/crl-server.key" \
-    -out /tmp/crl-server.csr \
-    -subj "/C=US/O=RDK Test/CN=crl-server" 2>/dev/null
-openssl x509 -req \
-    -in /tmp/crl-server.csr \
-    -CA "${CRL_ICA_DIR}/certs/Test-CRL-ICA.pem" \
-    -CAkey "${CRL_ICA_DIR}/private/Test-CRL-ICA.key" \
-    -CAcreateserial \
-    -out "${OUT_DIR}/crl-server.pem" \
-    -days 365 -sha256 \
-    -extfile <(printf "basicConstraints=CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectKeyIdentifier=hash\nsubjectAltName=DNS:${SERVER_CN}") 2>/dev/null
-rm -f /tmp/crl-server.csr
+# ── 2. Create CRL client cert (tracked in CA DB for live revocation) ──────────
+CERT_DIR="${CERT_DIR}" "${SCRIPT_DIR}/create_leaf_cert.sh" \
+    --cert-name "crl-client" --ca-name "${CRL_ICA}" \
+    --cn "crl-client" --type client --validity 365 \
+    --ca-track --no-p12
+
+echo "[crl-pki] Client cert created (tracked in CA DB)"
+
+# ── 3. Create CRL server cert (NOT tracked — stays valid during revoke) ───────
+CERT_DIR="${CERT_DIR}" "${SCRIPT_DIR}/create_leaf_cert.sh" \
+    --cert-name "crl-server" --ca-name "${CRL_ICA}" \
+    --cn "${SERVER_CN}" --type server --validity 365 \
+    --no-p12
+
 echo "[crl-pki] Server cert created (SAN=${SERVER_CN})"
 
-# ── Client cert (via openssl ca — tracked in DB for revocation) ──────────────
-openssl ecparam -name prime256v1 -genkey -noout \
-    -out "${CRL_ICA_DIR}/private/crl-client.key" 2>/dev/null
-chmod 600 "${CRL_ICA_DIR}/private/crl-client.key"
-openssl req -new \
-    -key "${CRL_ICA_DIR}/private/crl-client.key" \
-    -out "${CRL_ICA_DIR}/csr/crl-client.csr" \
-    -subj "/C=US/O=RDK Test/CN=crl-client" 2>/dev/null
-openssl ca \
-    -config "${CRL_ICA_DIR}/openssl.cnf" \
-    -in "${CRL_ICA_DIR}/csr/crl-client.csr" \
-    -out "${CRL_ICA_DIR}/certs/crl-client.pem" \
-    -extensions client_cert \
-    -days 365 \
-    -batch \
-    -notext 2>/dev/null
+# ── 4. Create OCSP server cert (tracked — responder can attest 'good') ────────
+CERT_DIR="${CERT_DIR}" "${SCRIPT_DIR}/create_leaf_cert.sh" \
+    --cert-name "ocsp-server" --ca-name "${CRL_ICA}" \
+    --cn "${SERVER_CN}" --type server --validity 365 \
+    --ca-track --san "DNS:${SERVER_CN}" --aia "http://127.0.0.1:50063" --no-p12
 
-# ── Initial empty CRL (ICA level) ────────────────────────────────────────────
-openssl ca \
-    -config "${CRL_ICA_DIR}/openssl.cnf" \
-    -gencrl \
-    -out "${OUT_DIR}/Test-CRL-ICA.crl.pem" \
-    -crldays 365 2>/dev/null
-echo "[crl-pki] Client cert created in CA DB + initial empty CRL generated"
+echo "[crl-pki] OCSP server cert created (tracked, AIA→http://127.0.0.1:50063)"
 
-# ── OCSP server cert (via openssl ca — tracked in DB so responder returns 'good') ──
-openssl ecparam -name prime256v1 -genkey -noout \
-    -out "${OUT_DIR}/ocsp-server.key" 2>/dev/null
-chmod 600 "${OUT_DIR}/ocsp-server.key"
-openssl req -new \
-    -key "${OUT_DIR}/ocsp-server.key" \
-    -out /tmp/ocsp-server.csr \
-    -subj "/C=US/O=RDK Test/CN=${SERVER_CN}" 2>/dev/null
-openssl ca \
-    -config "${CRL_ICA_DIR}/openssl.cnf" \
-    -in /tmp/ocsp-server.csr \
-    -out "${OUT_DIR}/ocsp-server.pem" \
-    -extensions v3_ocsp_server \
-    -days 365 \
-    -batch \
-    -notext 2>/dev/null
-rm -f /tmp/ocsp-server.csr
-chmod 644 "${OUT_DIR}/ocsp-server.pem"
-echo "[crl-pki] OCSP server cert created (tracked in DB, AIA=http://127.0.0.1:50063)"
+# ── 5. Create OCSP responder cert (EKU=OCSPSigning) ──────────────────────────
+CERT_DIR="${CERT_DIR}" "${SCRIPT_DIR}/create_leaf_cert.sh" \
+    --cert-name "ocsp-responder" --ca-name "${CRL_ICA}" \
+    --cn "ocsp-responder" --type client --validity 365 \
+    --ca-track --eku "OCSPSigning" --no-p12
 
-# ── OCSP responder cert (extendedKeyUsage = OCSPSigning) ─────────────────────
-openssl ecparam -name prime256v1 -genkey -noout \
-    -out "${OUT_DIR}/ocsp-responder.key" 2>/dev/null
-chmod 600 "${OUT_DIR}/ocsp-responder.key"
-openssl req -new \
-    -key "${OUT_DIR}/ocsp-responder.key" \
-    -out /tmp/ocsp-responder.csr \
-    -subj "/C=US/O=RDK Test/CN=ocsp-responder" 2>/dev/null
-openssl x509 -req \
-    -in /tmp/ocsp-responder.csr \
-    -CA "${CRL_ICA_DIR}/certs/Test-CRL-ICA.pem" \
-    -CAkey "${CRL_ICA_DIR}/private/Test-CRL-ICA.key" \
-    -CAcreateserial \
-    -out "${OUT_DIR}/ocsp-responder.pem" \
-    -days 365 -sha256 \
-    -extfile <(printf "basicConstraints=CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=critical,OCSPSigning\nsubjectKeyIdentifier=hash") 2>/dev/null
-rm -f /tmp/ocsp-responder.csr
-chmod 644 "${OUT_DIR}/ocsp-responder.pem"
 echo "[crl-pki] OCSP responder cert created (EKU=OCSPSigning)"
 
-# ── Client P12 bundle ─────────────────────────────────────────────────────────
-_CRL_ICA_CHAIN="${OUT_DIR}/crl-ica-chain.pem"
-cat "${CRL_ICA_DIR}/certs/Test-CRL-ICA.pem" \
-    "${CRL_ROOT_DIR}/certs/Test-CRL-Root.pem" > "${_CRL_ICA_CHAIN}"
-PKCS12_PASS="${CERT_PASSWORD}" openssl pkcs12 -export \
-    -in "${CRL_ICA_DIR}/certs/crl-client.pem" \
-    -inkey "${CRL_ICA_DIR}/private/crl-client.key" \
-    -certfile "${_CRL_ICA_CHAIN}" \
-    -out "${OUT_DIR}/crl-client.p12" \
-    -name "crl-client" \
-    -passout env:PKCS12_PASS 2>/dev/null
-chmod 644 "${OUT_DIR}/crl-client.p12"
+# ── 6. Generate empty CRLs ────────────────────────────────────────────────────
+source "${SCRIPT_DIR}/cert_utils.sh"
 
-# ── Copy remaining outputs ────────────────────────────────────────────────────
-cp "${CRL_ICA_DIR}/certs/Test-CRL-ICA.pem"      "${OUT_DIR}/Test-CRL-ICA.pem"
-cp "${CRL_ROOT_DIR}/certs/Test-CRL-Root.pem"     "${OUT_DIR}/Test-CRL-Root.pem"
-cp "${CRL_ROOT_DIR}/crl/Test-CRL-Root.crl.pem"   "${OUT_DIR}/Test-CRL-Root.crl.pem"
-cp "${CRL_ICA_DIR}/certs/crl-client.pem"         "${OUT_DIR}/crl-client.pem"
-cp "${CRL_ICA_DIR}/private/crl-client.key"       "${OUT_DIR}/crl-client.key"
-chmod 600 "${OUT_DIR}/crl-client.key"
+generate_empty_crl "${CRL_ICA_DIR}" "${CRL_ICA}" "${OUT_DIR}/Test-CRL-ICA.crl.pem"
+generate_empty_crl "${CRL_ROOT_DIR}" "${CRL_ROOT}" "${OUT_DIR}/Test-CRL-Root.crl.pem"
+cp "${OUT_DIR}/Test-CRL-Root.crl.pem" "${CRL_ROOT_DIR}/crl/Test-CRL-Root.crl.pem"
 
-# ── CA chain for OCSP daemon ─────────────────────────────────────────────────
-cat "${CRL_ICA_DIR}/certs/Test-CRL-ICA.pem" \
-    "${CRL_ROOT_DIR}/certs/Test-CRL-Root.pem" > "${OUT_DIR}/ocsp-ca-chain.pem"
+echo "[crl-pki] Empty CRLs generated"
 
-echo "[crl-pki] All CRL test cert assets generated in ${OUT_DIR}"
+# ── 7. Bundle client P12 and copy outputs ─────────────────────────────────────
+mkdir -p "${CLIENT_OUT_DIR}"
+mkdir -p "${OCSP_OUT_DIR}"
+
+create_cert_chain \
+    "${CRL_ICA_DIR}/certs/${CRL_ICA}.pem" \
+    "${CRL_ROOT_DIR}/${CRL_ROOT}_chain.pem" \
+    "${CLIENT_OUT_DIR}/crl-ica-chain.pem"
+
+create_pkcs12 \
+    "${CRL_ICA_DIR}/certs/crl-client.pem" \
+    "${CRL_ICA_DIR}/private/crl-client.key" \
+    "${CLIENT_OUT_DIR}/crl-ica-chain.pem" \
+    "${CLIENT_OUT_DIR}/crl-client.p12" \
+    "${CERT_PASSWORD}" \
+    "crl-client"
+
+cp "${CRL_ICA_DIR}/certs/crl-client.pem"       "${CLIENT_OUT_DIR}/crl-client.pem"
+cp "${CRL_ICA_DIR}/private/crl-client.key"     "${CLIENT_OUT_DIR}/crl-client.key"
+chmod 600 "${CLIENT_OUT_DIR}/crl-client.key"
+
+cp "${CRL_ROOT_DIR}/certs/${CRL_ROOT}.pem"     "${CLIENT_OUT_DIR}/Test-CRL-Root.pem"
+
+cp "${CRL_ICA_DIR}/certs/crl-server.pem"       "${OUT_DIR}/crl-server.pem"
+cp "${CRL_ICA_DIR}/private/crl-server.key"     "${OUT_DIR}/crl-server.key"
+chmod 600 "${OUT_DIR}/crl-server.key"
+
+cp "${CRL_ICA_DIR}/certs/${CRL_ICA}.pem"       "${OUT_DIR}/Test-CRL-ICA.pem"
+cp "${CRL_ROOT_DIR}/certs/${CRL_ROOT}.pem"     "${OUT_DIR}/Test-CRL-Root.pem"
+
+cp "${CRL_ICA_DIR}/certs/ocsp-server.pem"      "${OCSP_OUT_DIR}/ocsp-server.pem"
+cp "${CRL_ICA_DIR}/private/ocsp-server.key"    "${OCSP_OUT_DIR}/ocsp-server.key"
+chmod 600 "${OCSP_OUT_DIR}/ocsp-server.key"
+
+cp "${CRL_ICA_DIR}/certs/ocsp-responder.pem"   "${OCSP_OUT_DIR}/ocsp-responder.pem"
+cp "${CRL_ICA_DIR}/private/ocsp-responder.key" "${OCSP_OUT_DIR}/ocsp-responder.key"
+chmod 600 "${OCSP_OUT_DIR}/ocsp-responder.key"
+
+cp "${CRL_ICA_DIR}/certs/${CRL_ICA}.pem"       "${OCSP_OUT_DIR}/Test-CRL-ICA.pem"
+cp "${CRL_ROOT_DIR}/certs/${CRL_ROOT}.pem"     "${OCSP_OUT_DIR}/Test-CRL-Root.pem"
+
+# CA chain for OCSP daemon
+cat "${CRL_ICA_DIR}/certs/${CRL_ICA}.pem" \
+    "${CRL_ROOT_DIR}/certs/${CRL_ROOT}.pem" > "${OCSP_OUT_DIR}/ocsp-ca-chain.pem"
+
+echo "[crl-pki] All CRL test cert assets generated"
 echo "[crl-pki] Done."
