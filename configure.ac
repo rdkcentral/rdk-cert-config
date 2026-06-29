@@ -163,7 +163,12 @@ AC_CONFIG_FILES([
 AM_COND_IF([CSPC_RDKCONFIG_SUPPORT_ENABLED],[],[AC_CONFIG_FILES([RdkConfigApi/Makefile RdkConfigApi/src/Makefile])])
 fi
 
-AM_COND_IF([CSPC_L2_TEST],[AC_CONFIG_FILES([test/l2-sampleapp/Makefile test/l3-testapp/Makefile])],[])
+AM_COND_IF([CSPC_L2_TEST],[AC_CONFIG_FILES([test/l2-sampleapp/Makefile])],[])
+if test x$CSPC_L2_TEST = xtrue; then
+AC_CONFIG_FILES([
+     test/l3-testapp/Makefile
+     ])
+fi
 AM_COND_IF([TEST_RDK_CERTS],[AC_CONFIG_FILES([test/cert-scripts/Makefile test/pkcs11-scripts/Makefile test/patches/Makefile])],[])
 
 if test x$GTEST_SUPPORT_ENABLED == xtrue; then

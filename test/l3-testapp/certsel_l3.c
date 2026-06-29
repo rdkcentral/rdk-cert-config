@@ -38,6 +38,14 @@
 #include <stdlib.h>
 #include <curl/curl.h>
 
+/* curl/curl.h transitively includes <linux/limits.h>, which defines PATH_MAX
+ * as 4096.  rdkcertselector.h redefines PATH_MAX as 128 for its own object
+ * length limits.  Drop the system definition here so the header's redefinition
+ * is clean and does not trip -Werror.  This keeps the fix local to the L3
+ * testapp and leaves the shared production header (and the L1 gtest build)
+ * untouched. */
+#undef PATH_MAX
+
 #include "../../CertSelector/include/rdkcertselector.h"
 #include "certsel_l3.h"
 
