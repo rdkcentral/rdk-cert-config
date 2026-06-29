@@ -16,7 +16,7 @@
 # RDK-CERT-CONFIG-ORIGINAL-WORK
 
 if CSPC_L2_TEST
-SUBDIRS = l2-sampleapp
+SUBDIRS = l2-sampleapp l3-testapp
 endif
 
 if TEST_RDK_CERTS

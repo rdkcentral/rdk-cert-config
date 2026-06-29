@@ -18,14 +18,19 @@
 L3 CRL / Cross-signed mTLS test driver
 
 Runs *inside* the native-platform container where:
-  - curl is available with OpenSSL mTLS support
-  - shared_certs/crl-client/ holds the CRL-PKI client cert assets
-  - shared_certs/xs-client/  holds the cross-signed P12 bundles
+  - l3testapp (built by run_l2.sh with --enable-l2testing) uses the
+    RDK CertSelector API to select a PKCS#12 cert and then performs a
+    real libcurl mTLS connection to mock-xconf
   - mockxconf:50061  is the CRL mTLS HTTPS server
   - mockxconf:50062  is the plain-HTTP CRL control endpoint
+  - mockxconf:50064  is the OCSP stapling server
 
-The tests are skipped when ENABLE_CRL_L3 is not set to "true" so they do
-not interfere with the L2 pytest run.
+For CRL/xsign scenarios (1-4) the Python driver controls server state
+(revoke/reset) and then delegates the cert-selector + curl step to l3testapp.
+For OCSP stapling scenarios the existing curl subprocess is used to inspect
+"SSL certificate status" in the verbose TLS trace.
+
+The tests are skipped when ENABLE_CRL_L3 is not set to "true".
 """
 
 import datetime
@@ -69,16 +74,47 @@ MOCKXCONF_CRL_CLIENT_CERT = (
 
 CERT_PASS = "changeit"
 
+# Path to the l3testapp binary (built alongside l2sampleapp by run_l2.sh)
+L3TESTAPP = "./test/l3-testapp/l3testapp"
+
+# ─── Module-level setup ───────────────────────────────────────────────────────
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _setup_l3_configs():
+    """Write certsel config files for l3testapp before any L3 test runs."""
+    setup = "./test/l3-testapp/test_setup.sh"
+    if os.path.isfile(setup):
+        subprocess.run(["sh", setup], check=True)
+    else:
+        pytest.skip(f"L3 test_setup.sh not found at {setup}")
+
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
+
+
+def run_l3testapp(scenario_id, timeout=10):
+    """
+    Invoke l3testapp <scenario_id> and return (returncode, stdout, stderr).
+
+    The testapp calls rdkcertselector_getCert to obtain the PKCS#12 cert URI
+    and password for the scenario, then makes a real libcurl mTLS connection,
+    then calls rdkcertselector_setCurlStatus with the actual CURLcode.
+
+    Exit code 0 means the expected outcome (connected OK for scenarios 1-3,5;
+    connection correctly failed for scenarios 3,4,6).
+    """
+    result = subprocess.run(
+        [L3TESTAPP, str(scenario_id)],
+        capture_output=True, text=True, timeout=timeout,
+    )
+    return result.returncode, result.stdout, result.stderr
 
 
 def curl_mtls(p12_file, url=None, timeout=10):
     """
-    Run curl with mTLS client authentication using a PKCS#12 bundle.
-
+    Run curl with mTLS for OCSP stapling tests that inspect the verbose trace.
     Returns (returncode, stdout_str, stderr_str).
-    The server certificate is verified against the system trust store which
-    includes Test-CRL-Root and Test-XS-NewRoot after certs.sh runs.
     """
     if url is None:
         url = f"{BASE_URL}/health"
@@ -106,9 +142,9 @@ def ctrl_post(endpoint, body=None):
 def test_l3_crl_valid_cert_succeeds():
     """A valid (non-revoked) client cert must be accepted by the mTLS server."""
     ctrl_post("/crl/reset")
-    rc, stdout, stderr = curl_mtls(CRL_CLIENT_P12)
+    rc, stdout, stderr = run_l3testapp(1)
     assert rc == 0, (
-        f"Expected curl to succeed with a valid cert (rc={rc}).\n"
+        f"Expected l3testapp scenario 1 (CRL valid) to succeed (rc={rc}).\n"
         f"stdout: {stdout}\nstderr: {stderr}"
     )
 
@@ -119,12 +155,12 @@ def test_l3_crl_revoked_cert_fails():
     assert resp.status_code == 200, (
         f"POST /crl/revoke failed: {resp.status_code} {resp.text}"
     )
-    # Brief pause to let setSecureContext() propagate
+    # Brief pause to let setSecureContext() propagate the new CRL to the server
     time.sleep(0.3)
 
-    rc, _, stderr = curl_mtls(CRL_CLIENT_P12)
+    rc, _, stderr = run_l3testapp(1)
     assert rc != 0, (
-        "Expected curl to fail after revocation but it succeeded.\n"
+        "Expected l3testapp scenario 1 to fail after revocation but it succeeded.\n"
         f"stderr: {stderr}"
     )
 
@@ -140,7 +176,7 @@ def test_l3_crl_reset_restores():
     time.sleep(0.3)
 
     # Confirm cert is rejected while revoked
-    rc_revoked, _, _ = curl_mtls(CRL_CLIENT_P12)
+    rc_revoked, _, _ = run_l3testapp(1)
     assert rc_revoked != 0, "Cert should be rejected while revoked"
 
     # Reset CRL
@@ -150,7 +186,7 @@ def test_l3_crl_reset_restores():
     )
 
     # Now cert should be accepted again
-    rc, _, stderr = curl_mtls(CRL_CLIENT_P12)
+    rc, _, stderr = run_l3testapp(1)
     assert rc == 0, (
         f"Expected cert to be accepted after CRL reset (rc={rc}).\n"
         f"stderr: {stderr}"
@@ -163,9 +199,9 @@ def test_l3_xsign_bridge_succeeds():
     accepted.  The server trusts Test-XS-NewRoot; the bridge cert links
     Test-XS-OldRoot to Test-XS-NewRoot.
     """
-    rc, stdout, stderr = curl_mtls(XS_CLIENT_XSIGN)
+    rc, stdout, stderr = run_l3testapp(2)
     assert rc == 0, (
-        f"Expected cross-signed bridge cert to succeed (rc={rc}).\n"
+        f"Expected l3testapp scenario 2 (xsign bridge) to succeed (rc={rc}).\n"
         f"stdout: {stdout}\nstderr: {stderr}"
     )
 
@@ -175,9 +211,9 @@ def test_l3_xsign_no_bridge_fails():
     A client cert under Test-XS-OldRoot with no bridge must be rejected: the
     server does not directly trust Test-XS-OldRoot.
     """
-    rc, _, stderr = curl_mtls(XS_CLIENT_OLD)
+    rc, _, stderr = run_l3testapp(3)
     assert rc != 0, (
-        "Expected old-root cert without a bridge to fail, but curl succeeded.\n"
+        "Expected l3testapp scenario 3 (xsign no bridge) to fail, but it succeeded.\n"
         f"stderr: {stderr}"
     )
 
@@ -189,11 +225,11 @@ def test_l3_xsign_expired_bridge_fails():
     hang).
     """
     start = datetime.datetime.now()
-    rc, _, stderr = curl_mtls(XS_CLIENT_EXPXS, timeout=10)
+    rc, _, stderr = run_l3testapp(4, timeout=10)
     elapsed = (datetime.datetime.now() - start).total_seconds()
 
     assert rc != 0, (
-        "Expected expired-bridge cert to fail, but curl succeeded.\n"
+        "Expected l3testapp scenario 4 (expired bridge) to fail, but it succeeded.\n"
         f"stderr: {stderr}"
     )
     assert elapsed < 5.0, (

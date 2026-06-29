@@ -18,84 +18,75 @@
 #
 # L3 CRL mTLS + Cross-signed PKI integration test runner.
 #
-# Executed *inside* the native-platform container, analogous to run_l2.sh
-# for L2 tests.  The CI workflow (L3-tests.yml) starts mockxconf and
-# native-platform with ENABLE_CRL_L3=true before invoking this script.
+# Executed *inside* the native-platform container after run_l2.sh completes.
 #
-# Prerequisites (set up by native-platform/certs.sh at container startup):
-#   /opt/certs/crl/crl-client.p12   — CRL PKI client credential
-#   /opt/certs/xs/client-xsign.p12  — cross-signed P12 bundle
+# When launched via L2-tests.yml (recommended), the correct start order is
+# enforced by the workflow sentinel steps:
+#   1. mock-xconf starts and PKI generation completes (sentinel files on the
+#      shared volume confirm readiness before native-platform is started).
+#   2. native-platform's certs.sh finishes installing trust anchors (confirmed
+#      by a sentinel file check before run_l2.sh is exec'd).
+#   3. run_l2.sh builds and runs L2 tests, then calls this script.
+#
+# Because Stages 1 and 2 are complete before this script is invoked, no
+# startup sleep is needed here.  The health-check below is a sanity assertion,
+# not a timing gate.
+#
+# Prerequisites (already satisfied when called after run_l2.sh):
+#   shared_certs/crl-client/  — CRL PKI client credentials on shared volume
+#   shared_certs/xs-client/   — cross-signed P12 bundles on shared volume
 #   System trust store includes Test-CRL-Root and Test-XS-NewRoot
-#
-# mockxconf must be reachable at mockxconf:50061 (mTLS) and
-# mockxconf:50062 (CRL control HTTP endpoint).
+#   mockxconf reachable at mockxconf:50061 (mTLS) and mockxconf:50062 (control)
 
 set -e
 
+SHARED_CERTS="/mnt/L2_CONTAINER_SHARED_VOLUME/shared_certs"
 RESULT_DIR="/tmp/l3_test_report"
 mkdir -p "$RESULT_DIR"
 
 # ── Install Python dependency required by the test driver ────────────────────
-# 'requests' is used by ctrl_post() to call POST /crl/revoke and /crl/reset.
-# Use || true so a pre-installed package does not abort the script.
 pip3 install --quiet requests 2>/dev/null || pip install --quiet requests 2>/dev/null || true
 
-# ── Wait for native-platform cert setup to complete ─────────────────────────
-# certs.sh (running in the container entrypoint) exports crl-client.p12 after
-# receiving it from mock-xconf over the shared volume.  docker exec may fire
-# before certs.sh finishes, so we poll here.
-echo "[run_l3] Waiting for /opt/certs/crl/crl-client.p12 (max 120s)..."
-i=0
-while [ $i -lt 120 ]; do
-    [ -f /opt/certs/crl/crl-client.p12 ] && break
-    sleep 2
-    i=$((i+2))
+# ── Verify prerequisites ─────────────────────────────────────────────────────
+echo "[run_l3] Verifying L3 prerequisites..."
+for f in "$SHARED_CERTS/crl-client/crl-client.p12" \
+         "$SHARED_CERTS/xs-client/client-xsign.p12"; do
+    if [ ! -f "$f" ]; then
+        echo "[run_l3] FAIL: $f not found." >&2
+        echo "[run_l3] Ensure mock-xconf started with ENABLE_CRL_L3=true." >&2
+        exit 1
+    fi
 done
-if [ ! -f /opt/certs/crl/crl-client.p12 ]; then
-    echo "[run_l3] FAIL: /opt/certs/crl/crl-client.p12 not present after 120s." >&2
-    echo "[run_l3] Check that mock-xconf started with ENABLE_CRL_L3=true." >&2
-    exit 1
-fi
-echo "[run_l3] CRL cert assets ready"
+echo "[run_l3] Cert assets verified"
 
-# ── Wait for xsign P12 bundles ───────────────────────────────────────────────
-echo "[run_l3] Waiting for /opt/certs/xs/client-xsign.p12 (max 60s)..."
-i=0
-while [ $i -lt 60 ]; do
-    [ -f /opt/certs/xs/client-xsign.p12 ] && break
-    sleep 2
-    i=$((i+2))
-done
-if [ ! -f /opt/certs/xs/client-xsign.p12 ]; then
-    echo "[run_l3] FAIL: /opt/certs/xs/client-xsign.p12 not present after 60s." >&2
-    exit 1
+# ── Build L3 certsel config files (absolute cert paths under /opt/certs/) ─────
+if [ -f test/l3-testapp/test_setup.sh ]; then
+    sh test/l3-testapp/test_setup.sh
+    echo "[run_l3] L3 certsel configs written"
 fi
-echo "[run_l3] xsign P12 bundles ready"
 
-# ── Wait for mockxconf CRL mTLS server on port 50061 ────────────────────────
-# The /health endpoint is on the same mTLS server (requestCert+rejectUnauthorized
-# = true), so curl must present the client cert.  We also pass --cacert with the
-# ICA chain so this check does not depend on the system trust store being fully
-# updated yet (the test suite itself relies on the trust store, not this poll).
-echo "[run_l3] Waiting for https://mockxconf:50061/health (max 60s)..."
-i=0
-while [ $i -lt 60 ]; do
-    curl -sf \
-        --cacert /opt/certs/crl/crl-ica-chain.pem \
-        --cert   /opt/certs/crl/crl-client.pem \
-        --key    /opt/certs/crl/crl-client.key \
-        https://mockxconf:50061/health >/dev/null 2>&1 && break
-    sleep 2
-    i=$((i+2))
-done
-if [ $i -ge 60 ]; then
-    echo "[run_l3] FAIL: mockxconf:50061 not reachable after 60s." >&2
-    echo "[run_l3] The CRL mTLS server requires a client cert; check that" >&2
-    echo "[run_l3]   /opt/certs/crl/crl-client.pem and crl-client.key exist" >&2
-    echo "[run_l3]   and that mock-xconf started with ENABLE_CRL_L3=true." >&2
-    exit 1
+# Verify l3testapp binary was built (requires --enable-l2testing)
+if [ ! -x test/l3-testapp/l3testapp ]; then
+    echo "[run_l3] WARNING: test/l3-testapp/l3testapp not found." >&2
+    echo "[run_l3] Ensure run_l2.sh built with --enable-l2testing." >&2
 fi
-echo "[run_l3] mockxconf:50061 ready"
+
+# Sanity-check: confirm mockxconf CRL mTLS server is reachable.
+# When invoked via run_tests.sh this should always pass — mock-xconf is
+# guaranteed ready before run_l2.sh is exec'd.  A failure here indicates a
+# misconfiguration (e.g. ENABLE_CRL_L3 not set, wrong container network)
+# and is reported as a warning rather than an immediate abort so that the
+# pytest run below produces a structured failure report.
+if ! curl -sf \
+    --cacert "$SHARED_CERTS/crl-client/crl-ica-chain.pem" \
+    --cert   "$SHARED_CERTS/crl-client/crl-client.pem" \
+    --key    "$SHARED_CERTS/crl-client/crl-client.key" \
+    https://mockxconf:50061/health >/dev/null 2>&1; then
+    echo "[run_l3] WARNING: mockxconf:50061 health-check failed." >&2
+    echo "[run_l3] Ensure ENABLE_CRL_L3=true and L2-tests.yml orchestration was followed." >&2
+else
+    echo "[run_l3] mockxconf:50061 ready"
+fi
 
 # ── Run L3 test suite ────────────────────────────────────────────────────────
 echo "[run_l3] Running L3 CRL / cross-signed mTLS test suite..."

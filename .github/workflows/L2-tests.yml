@@ -29,32 +29,7 @@ jobs:
           docker pull ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
           docker pull ghcr.io/rdkcentral/docker-rdk-ci:latest
 
-      # ── L2 Tests ───────────────────────────────────────────────────────────
-      - name: Start native-platform for L2
-        run: |
-          docker run -d --name native-platform -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
-
-      - name: Run L2 Test
-        run: |
-          docker exec -i native-platform /bin/bash -c "cd /mnt/L2_CONTAINER_SHARED_VOLUME/ && export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu:/lib/aarch64-linux-gnu:/usr/local/lib: && sh run_l2.sh"
-
-      - name: Copy L2 test results
-        run: |
-          docker cp native-platform:/tmp/l2_test_report /tmp/L2_TEST_RESULTS
-          ls -l /tmp/L2_TEST_RESULTS
-
-      - name: Stop L2 containers
-        run: |
-          docker rm -f native-platform || true
-          rm -rf ${{ github.workspace }}/shared_certs
-
-      # ── L3 Tests ───────────────────────────────────────────────────────────
-      # TEMPORARY: Build mockxconf from fork branch and volume-mount updated
-      # certs.sh into native-platform until docker-device-mgt-service-test PR
-      # merges and GHCR images are rebuilt with CRL-L3 support.
-      # Once merged, replace with:
-      #   docker pull ghcr.io/rdkcentral/docker-device-mgt-service-test/mockxconf:latest
-      #   and remove the -v .../certs.sh volume-mount from native-platform.
+      # ── TEMPORARY: Build mockxconf from fork until docker PR merges ────────
       - name: Checkout docker-device-mgt-service-test (temporary)
         uses: actions/checkout@v4
         with:
@@ -66,24 +41,80 @@ jobs:
         run: |
           docker build -t mockxconf:latest docker-device-mgt/mock-xconf
 
-      - name: Start mock-xconf for L3
+      # ── Stage 1: Start mock-xconf and wait for PKI generation ─────────────
+      - name: Start mock-xconf
         run: |
-          docker run -d --name mockxconf -e ENABLE_CRL_L3=true -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME mockxconf:latest
-          sleep 60
+          docker run -d --name mockxconf \
+            -e ENABLE_CRL_L3=true \
+            -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME \
+            mockxconf:latest
 
-      - name: Start native-platform for L3
+      # mock-xconf generates CRL and cross-signed PKI at startup. Wait for
+      # sentinel files on the shared volume before starting native-platform so
+      # native-platform's certs.sh can copy them immediately without polling.
+      - name: Wait for mock-xconf PKI generation
         run: |
-          docker run -d --name native-platform --link mockxconf -e ENABLE_CRL_L3=true -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME -v ${{ github.workspace }}/docker-device-mgt/native-platform/certs.sh:/usr/local/bin/certs.sh ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
+          timeout=180; elapsed=0
+          until [ -f "${{ github.workspace }}/shared_certs/crl-client/crl-client.p12" ] && \
+                [ -f "${{ github.workspace }}/shared_certs/xs-client/client-xsign.p12" ]; do
+            sleep 3; elapsed=$((elapsed + 3))
+            if [ "$elapsed" -ge "$timeout" ]; then
+              echo "::error::Timeout (${timeout}s): mock-xconf PKI generation did not complete"
+              docker logs mockxconf || true
+              exit 1
+            fi
+            echo "Waiting for mock-xconf PKI... (${elapsed}s)"
+          done
+          echo "mock-xconf PKI generation complete (${elapsed}s)"
 
-      - name: Run L3 Test
+      # ── Stage 2: Start native-platform and wait for trust-store install ────
+      - name: Start native-platform
         run: |
-          docker exec -i native-platform /bin/bash -c "cd /mnt/L2_CONTAINER_SHARED_VOLUME/ && export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu:/lib/aarch64-linux-gnu:/usr/local/lib: && sh run_l3.sh"
+          docker run -d --name native-platform \
+            --link mockxconf \
+            --cap-add SYS_ADMIN \
+            --cap-add NET_ADMIN \
+            -e ENABLE_CRL_L3=true \
+            -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME \
+            -v ${{ github.workspace }}/docker-device-mgt/native-platform/certs.sh:/usr/local/bin/certs.sh \
+            ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
 
-      - name: Copy L3 test results
+      # native-platform's certs.sh copies PKI from the shared volume and
+      # installs trust anchors. Wait for the sentinel CA file inside the
+      # container before exec'ing run_l2.sh so the trust store is ready and
+      # run_l3.sh curl calls succeed without any startup sleep.
+      - name: Wait for native-platform trust anchors
         run: |
-          mkdir -p /tmp/L3_TEST_RESULTS
-          docker cp native-platform:/tmp/l3_test_report/. /tmp/L3_TEST_RESULTS/ || echo "No results to copy"
-          ls -l /tmp/L3_TEST_RESULTS
+          timeout=120; elapsed=0
+          until docker exec native-platform test -f /usr/share/ca-certificates/test-crl-root.pem 2>/dev/null; do
+            sleep 3; elapsed=$((elapsed + 3))
+            if [ "$elapsed" -ge "$timeout" ]; then
+              echo "::error::Timeout (${timeout}s): native-platform trust anchors not installed"
+              docker logs native-platform || true
+              exit 1
+            fi
+            echo "Waiting for native-platform trust anchors... (${elapsed}s)"
+          done
+          echo "native-platform trust anchors installed (${elapsed}s)"
+
+      # ── Stage 3: Run L2 then L3 in a single exec (no container restart) ───
+      # run_l2.sh builds the l2sampleapp, runs L2 pytest, then automatically
+      # calls run_l3.sh when ENABLE_CRL_L3=true.  Both stages share the same
+      # container process; no sleep or restart is needed between them.
+      - name: Run L2 + L3 Tests
+        run: |
+          docker exec -i native-platform /bin/bash -c \
+            "cd /mnt/L2_CONTAINER_SHARED_VOLUME && \
+             export ENABLE_CRL_L3=true && \
+             export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu:/lib/aarch64-linux-gnu:/usr/local/lib: && \
+             sh run_l2.sh"
+
+      - name: Copy test results
+        run: |
+          mkdir -p /tmp/L2_TEST_RESULTS /tmp/L3_TEST_RESULTS
+          docker cp native-platform:/tmp/l2_test_report/. /tmp/L2_TEST_RESULTS/ || echo "No L2 results"
+          docker cp native-platform:/tmp/l3_test_report/. /tmp/L3_TEST_RESULTS/ || echo "No L3 results"
+          ls -l /tmp/L2_TEST_RESULTS /tmp/L3_TEST_RESULTS
 
       # ── Upload Results ─────────────────────────────────────────────────────
       - name: Upload results
