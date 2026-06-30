@@ -49,9 +49,9 @@ jobs:
             -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME \
             mockxconf:latest
 
-      # mock-xconf generates CRL and cross-signed PKI at startup. Wait for
-      # sentinel files on the shared volume before starting native-platform so
-      # native-platform's certs.sh can copy them immediately without polling.
+      # mock-xconf generates CRL and cross-signed PKI at startup. Wait for the
+      # final PKI output files on the shared volume before starting
+      # native-platform so its certs.sh can copy them immediately without polling.
       - name: Wait for mock-xconf PKI generation
         run: |
           timeout=180; elapsed=0
@@ -80,7 +80,7 @@ jobs:
             ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
 
       # native-platform's certs.sh copies PKI from the shared volume and
-      # installs trust anchors. Wait for the sentinel CA file inside the
+      # installs trust anchors. Wait for the root CA file inside the
       # container before exec'ing run_l2.sh so the trust store is ready and
       # run_l3.sh curl calls succeed without any startup sleep.
       - name: Wait for native-platform trust anchors
