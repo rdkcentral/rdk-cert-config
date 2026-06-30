@@ -2,7 +2,7 @@ name: L2 Integration Tests
 
 on:
   pull_request:
-    branches: [ develop , main , topic/RDK-57994 ]
+    branches: [ develop , main ]
 
 env:
   AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME }}
@@ -10,7 +10,7 @@ env:
 
 jobs:
   execute-L2-tests-on-pr:
-    name: Execute L2 test suite in L2 container environment
+    name: Execute L2 + L3 test suite in L2 container environment
     runs-on: ubuntu-latest
 
     steps:
@@ -26,48 +26,24 @@ jobs:
 
       - name: Pull docker images
         run: |
+          docker pull ghcr.io/rdkcentral/docker-device-mgt-service-test/mockxconf:latest
           docker pull ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
           docker pull ghcr.io/rdkcentral/docker-rdk-ci:latest
 
-      # ── TEMPORARY: Build mockxconf from fork until docker PR merges ────────
-      - name: Checkout docker-device-mgt-service-test (temporary)
-        uses: actions/checkout@v4
-        with:
-          repository: 'Lasya-Prakarsha-D-V/docker-device-mgt-service-test'
-          ref: 'topic/RDK-61158_old'
-          path: 'docker-device-mgt'
-
-      - name: Build mockxconf image (temporary)
-        run: |
-          docker build -t mockxconf:latest docker-device-mgt/mock-xconf
-
-      # ── Stage 1: Start mock-xconf and wait for PKI generation ─────────────
+      # mock-xconf generates the CRL and cross-signed PKI for the L3 suite and
+      # exports it to the shared volume. It is started first so its PKI is
+      # being produced while native-platform comes up.
       - name: Start mock-xconf
         run: |
           docker run -d --name mockxconf \
             -e ENABLE_CRL_L3=true \
             -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME \
-            mockxconf:latest
+            ghcr.io/rdkcentral/docker-device-mgt-service-test/mockxconf:latest
 
-      # mock-xconf generates CRL and cross-signed PKI at startup. Wait for the
-      # final PKI output files on the shared volume before starting
-      # native-platform so its certs.sh can copy them immediately without polling.
-      - name: Wait for mock-xconf PKI generation
-        run: |
-          timeout=180; elapsed=0
-          until [ -f "${{ github.workspace }}/shared_certs/crl-client/crl-client.p12" ] && \
-                [ -f "${{ github.workspace }}/shared_certs/xs-client/client-expxs.p12" ]; do
-            sleep 3; elapsed=$((elapsed + 3))
-            if [ "$elapsed" -ge "$timeout" ]; then
-              echo "::error::Timeout (${timeout}s): mock-xconf PKI generation did not complete"
-              docker logs mockxconf || true
-              exit 1
-            fi
-            echo "Waiting for mock-xconf PKI... (${elapsed}s)"
-          done
-          echo "mock-xconf PKI generation complete (${elapsed}s)"
-
-      # ── Stage 2: Start native-platform and wait for trust-store install ────
+      # native-platform's entrypoint runs certs.sh, which waits for mock-xconf's
+      # PKI files on the shared volume, copies them, and installs the trust
+      # anchors before the container's services start. That in-container wait is
+      # the only synchronisation needed, so the workflow does not poll.
       - name: Start native-platform
         run: |
           docker run -d --name native-platform \
@@ -76,32 +52,12 @@ jobs:
             --cap-add NET_ADMIN \
             -e ENABLE_CRL_L3=true \
             -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME \
-            -v ${{ github.workspace }}/docker-device-mgt/native-platform/certs.sh:/usr/local/bin/certs.sh \
             ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
 
-      # native-platform's certs.sh copies PKI from the shared volume and
-      # installs trust anchors. Wait for the root CA file inside the
-      # container before exec'ing run_l2.sh so the trust store is ready and
-      # run_l3.sh curl calls succeed without any startup sleep.
-      - name: Wait for native-platform trust anchors
-        run: |
-          timeout=120; elapsed=0
-          until docker exec native-platform test -f /usr/share/ca-certificates/test-crl-root.pem 2>/dev/null; do
-            sleep 3; elapsed=$((elapsed + 3))
-            if [ "$elapsed" -ge "$timeout" ]; then
-              echo "::error::Timeout (${timeout}s): native-platform trust anchors not installed"
-              docker logs native-platform || true
-              exit 1
-            fi
-            echo "Waiting for native-platform trust anchors... (${elapsed}s)"
-          done
-          echo "native-platform trust anchors installed (${elapsed}s)"
-
-      # ── Stage 3: Run L2 then L3 in a single exec (no container restart) ───
-      # run_l2.sh builds the l2sampleapp, runs L2 pytest, then automatically
-      # calls run_l3.sh when ENABLE_CRL_L3=true.  Both stages share the same
-      # container process; no sleep or restart is needed between them.
-      - name: Run L2 + L3 Tests
+      # run_l2.sh builds the l2sampleapp and runs the L2 pytest suite, then
+      # chains into run_l3.sh because ENABLE_CRL_L3=true. The build runs in the
+      # same container whose certs.sh has already established the trust store.
+      - name: Run L2 + L3 tests
         run: |
           docker exec -i native-platform /bin/bash -c \
             "cd /mnt/L2_CONTAINER_SHARED_VOLUME && \
@@ -110,6 +66,7 @@ jobs:
              sh run_l2.sh"
 
       - name: Copy test results
+        if: always()
         run: |
           mkdir -p /tmp/L2_TEST_RESULTS /tmp/L3_TEST_RESULTS
           docker cp native-platform:/tmp/l2_test_report/. /tmp/L2_TEST_RESULTS/ || echo "No L2 results"

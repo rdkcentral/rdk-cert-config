@@ -20,17 +20,17 @@
 #
 # Executed *inside* the native-platform container after run_l2.sh completes.
 #
-# When launched via L2-tests.yml (recommended), the correct start order is
-# enforced by the workflow sentinel steps:
-#   1. mock-xconf starts and PKI generation completes (sentinel files on the
-#      shared volume confirm readiness before native-platform is started).
-#   2. native-platform's certs.sh finishes installing trust anchors (confirmed
-#      by a sentinel file check before run_l2.sh is exec'd).
-#   3. run_l2.sh builds and runs L2 tests, then calls this script.
+# Start order is enforced by the containers themselves, not the workflow:
+#   1. mock-xconf generates the CRL and cross-signed PKI and exports the final
+#      bundles to the shared volume.
+#   2. native-platform's certs.sh (run from its entrypoint) waits for those
+#      files, copies them, and installs the trust anchors before the container
+#      services start.
+#   3. run_l2.sh builds and runs the L2 tests, then calls this script.
 #
-# Because Stages 1 and 2 are complete before this script is invoked, no
-# startup sleep is needed here.  The health-check below is a sanity assertion,
-# not a timing gate.
+# Because steps 1 and 2 complete before this script is invoked, no startup
+# sleep is needed here.  The health-check below is a sanity assertion, not a
+# timing gate.
 #
 # Prerequisites (already satisfied when called after run_l2.sh):
 #   shared_certs/crl-client/  — CRL PKI client credentials on shared volume
