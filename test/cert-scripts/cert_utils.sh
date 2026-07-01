@@ -268,6 +268,9 @@ create_pkcs12() {
     return 1
   fi
 
+  # PKCS#12 bundles contain a private key; restrict to owner-only access.
+  chmod 600 "${output_p12}"
+
   echo_t "PKCS#12 keystore created at ${output_p12}"
   return 0
 }

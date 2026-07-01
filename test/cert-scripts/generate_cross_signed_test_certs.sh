@@ -196,10 +196,13 @@ if openssl verify -CAfile "${NEW_ROOT_PEM}" "${XS_BRIDGE}" >/dev/null 2>&1; then
 else
     echo_a "[xs-pki] WARNING: OldRoot-xsign.pem did NOT verify against NewRoot"
 fi
-if ! openssl verify -CAfile "${NEW_ROOT_PEM}" "${XS_EXPIRY_BRIDGE}" >/dev/null 2>&1; then
-    echo_a "[xs-pki] ✓ OldRoot-expxs.pem correctly fails verification (expired bridge)"
+# At this stage OldRoot-expxs.pem is still the short-validity (but currently
+# valid) bridge; the truly-expired replacement is applied later by
+# generate_xs_crl_and_expired_bridge.sh. So it should verify successfully here.
+if openssl verify -CAfile "${NEW_ROOT_PEM}" "${XS_EXPIRY_BRIDGE}" >/dev/null 2>&1; then
+    echo_a "[xs-pki] ✓ OldRoot-expxs.pem verifies against NewRoot (short validity: ${XS_EXPIRY} day(s))"
 else
-    echo_a "[xs-pki] WARNING: OldRoot-expxs.pem unexpectedly passed verification (bridge not expired?)"
+    echo_a "[xs-pki] WARNING: OldRoot-expxs.pem did NOT verify against NewRoot"
 fi
 
 echo_a "[xs-pki] Done. P12 bundles written to: ${OUT_DIR}"

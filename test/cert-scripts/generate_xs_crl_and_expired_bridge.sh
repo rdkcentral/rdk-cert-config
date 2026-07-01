@@ -71,8 +71,10 @@ _OLD_SUBJ=$(openssl x509 -in "${_OLDROOT_CERT}" -noout -subject -nameopt compat 
 # Ensure NewRoot has a CA DB config for signing
 create_ca_db_config "${_NR_DIR}" "Test-XS-NewRoot"
 
-# Append v3_ca extensions to the existing config
-cat >> "${_NR_DIR}/openssl.cnf" << 'EXTEOF'
+# Append v3_ca extensions to the existing config (idempotent — the config may
+# already exist and carry the section from a previous run).
+if ! grep -q '^\[ v3_ca \]' "${_NR_DIR}/openssl.cnf"; then
+    cat >> "${_NR_DIR}/openssl.cnf" << 'EXTEOF'
 
 [ v3_ca ]
 basicConstraints       = critical,CA:TRUE
@@ -80,28 +82,30 @@ keyUsage               = critical,digitalSignature,cRLSign,keyCertSign
 subjectKeyIdentifier   = hash
 authorityKeyIdentifier = keyid:always,issuer
 EXTEOF
+fi
 
+_OLDROOT_EXPIRED_CSR="$(mktemp)"
 openssl req -new \
     -key "${_OLDROOT_KEY}" \
-    -out /tmp/_oldroot_expired.csr \
+    -out "${_OLDROOT_EXPIRED_CSR}" \
     -subj "${_OLD_SUBJ}" 2>/dev/null
 
 openssl ca \
     -config "${_NR_DIR}/openssl.cnf" \
-    -in /tmp/_oldroot_expired.csr \
+    -in "${_OLDROOT_EXPIRED_CSR}" \
     -out "${_EXPXS_BRIDGE}" \
     -startdate 20240101000000Z \
     -enddate   20240102000000Z \
     -extensions v3_ca \
     -batch \
     -notext 2>/dev/null
-rm -f /tmp/_oldroot_expired.csr
+rm -f "${_OLDROOT_EXPIRED_CSR}"
 
 # Re-bundle client-expxs.p12 with the expired bridge
 _EXPXS_KEY=$(find "${XS_CERT_DIR}" -name "client-expxs.key" 2>/dev/null | head -1)
 _EXPXS_PEM=$(find "${XS_CERT_DIR}" -name "client-expxs.pem" 2>/dev/null | head -1)
 _OLD_ICA="${XS_CERT_DIR}/Test-XS-OldRoot/Test-XS-OldICA/certs/Test-XS-OldICA.pem"
-_CHAIN_TMP="/tmp/_expxs_chain.pem"
+_CHAIN_TMP="$(mktemp)"
 cat "${_OLD_ICA}" "${_OLDROOT_CERT}" "${_EXPXS_BRIDGE}" "${_NEWROOT_CERT}" > "${_CHAIN_TMP}"
 
 PKCS12_PASS="${CERT_PASSWORD}" openssl pkcs12 -export \
@@ -111,7 +115,7 @@ PKCS12_PASS="${CERT_PASSWORD}" openssl pkcs12 -export \
     -out "${XS_OUT_DIR}/client-expxs.p12" \
     -name "client-expxs" \
     -passout env:PKCS12_PASS 2>/dev/null
-chmod 644 "${XS_OUT_DIR}/client-expxs.p12"
+chmod 600 "${XS_OUT_DIR}/client-expxs.p12"
 rm -f "${_CHAIN_TMP}"
 echo "[xs-post] Replaced expired bridge with truly-expired cert (2024-01-01/02)"
 
