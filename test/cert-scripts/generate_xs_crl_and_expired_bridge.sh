@@ -40,6 +40,10 @@ XS_CERT_DIR="${XS_CERT_DIR:-/etc/pki/test-xs}"
 XS_OUT_DIR="${XS_OUT_DIR:-/etc/xconf/certs/xs}"
 CERT_PASSWORD="${CERT_PASSWORD:-changeit}"
 
+# Ensure the output directory exists; this script may run standalone (with
+# set -euo pipefail a missing dir would abort on the first cp/export).
+mkdir -p "${XS_OUT_DIR}"
+
 echo "[xs-post] Post-processing XS PKI: generating CRLs and expired bridge..."
 
 # ── Generate empty CRLs for all XS CAs ───────────────────────────────────────

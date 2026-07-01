@@ -36,6 +36,11 @@
 #   --no-password           Generate a P12 file with no password
 #   --wrong-password        Generate a P12 file with incorrect password
 #   --missing-cert          Simulate a missing certificate file
+#   --ca-track              Sign via 'openssl ca' (tracked in CA DB for revocation)
+#   --san <SAN>             Subject Alternative Name (e.g. DNS:mockxconf)
+#   --eku <EKU>             Extended Key Usage (serverAuth|clientAuth|OCSPSigning)
+#   --aia <URI>             Authority Information Access OCSP responder URI
+#   --no-p12                Skip PKCS#12 (.p12) bundle generation
 #   --help                  Display this help message
 
 # Import utility functions
@@ -276,6 +281,12 @@ Options:
   --no-password           Generate a P12 file with no password
   --wrong-password        Generate a P12 file with incorrect password
   --missing-cert          Simulate a missing certificate file
+  --ca-track              Sign via 'openssl ca' so the cert is tracked in the CA
+                          database (enables later revocation)
+  --san <SAN>             Subject Alternative Name (e.g. DNS:mockxconf)
+  --eku <EKU>             Extended Key Usage (serverAuth|clientAuth|OCSPSigning)
+  --aia <URI>             Authority Information Access OCSP responder URI
+  --no-p12                Skip PKCS#12 (.p12) bundle generation
   --help                  Display this help message
 
 Examples:
