@@ -44,8 +44,9 @@ SHARED_CERTS="/mnt/L2_CONTAINER_SHARED_VOLUME/shared_certs"
 RESULT_DIR="/tmp/l3_test_report"
 mkdir -p "$RESULT_DIR"
 
-# ── Install Python dependency required by the test driver ────────────────────
-pip3 install --quiet requests 2>/dev/null || pip install --quiet requests 2>/dev/null || true
+# The test driver uses only the Python standard library (urllib), so no
+# runtime package installation is required. This keeps the suite free of
+# outbound network dependencies in egress-restricted CI environments.
 
 # ── Verify prerequisites ─────────────────────────────────────────────────────
 echo "[run_l3] Verifying L3 prerequisites..."
@@ -91,6 +92,9 @@ fi
 # ── Run L3 test suite ────────────────────────────────────────────────────────
 echo "[run_l3] Running L3 CRL / cross-signed mTLS test suite..."
 
+# Disable errexit around pytest so a test failure does not abort the script
+# before PYTEST_RC is captured and the per-test summary below is printed.
+set +e
 ENABLE_CRL_L3=true \
     pytest \
     --json-report \
@@ -98,6 +102,7 @@ ENABLE_CRL_L3=true \
     test/functional-tests/tests/test_l3_crl_xsign.py \
     -v
 PYTEST_RC=$?
+set -e
 
 # ── Print per-test summary from the JSON report ──────────────────────────────
 if [ -f "$RESULT_DIR/l3_crl_xsign_run.json" ]; then

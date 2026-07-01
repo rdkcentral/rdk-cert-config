@@ -34,12 +34,15 @@ The tests are skipped when ENABLE_CRL_L3 is not set to "true".
 """
 
 import datetime
+import json
 import os
 import subprocess
 import time
+import urllib.error
+import urllib.request
+from collections import namedtuple
 
 import pytest
-import requests
 
 # ─── Skip guard ──────────────────────────────────────────────────────────────
 
@@ -131,9 +134,31 @@ def curl_mtls(p12_file, url=None, timeout=10):
     return result.returncode, result.stdout, result.stderr
 
 
+# Minimal response wrapper exposing the subset of the requests.Response API
+# used by these tests (.status_code and .text).
+_CtrlResponse = namedtuple("_CtrlResponse", ["status_code", "text"])
+
+
 def ctrl_post(endpoint, body=None):
-    """POST to the CRL control server and return the Response object."""
-    return requests.post(f"{CTRL_URL}{endpoint}", json=body, timeout=5)
+    """POST to the CRL control server using only the Python standard library.
+
+    Returns an object exposing .status_code and .text. Using urllib avoids a
+    runtime ``pip install requests`` and keeps the L3 suite free of outbound
+    network/package dependencies in egress-restricted CI.
+    """
+    data = json.dumps(body if body is not None else {}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{CTRL_URL}{endpoint}",
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return _CtrlResponse(resp.status, resp.read().decode("utf-8", "replace"))
+    except urllib.error.HTTPError as exc:
+        # An HTTP error response still carries a status code and body.
+        return _CtrlResponse(exc.code, exc.read().decode("utf-8", "replace"))
 
 
 # ─── Test cases ───────────────────────────────────────────────────────────────
