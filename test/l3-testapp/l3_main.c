@@ -30,7 +30,10 @@
  *   5  OCSP      — connect to OCSP stapling server (expects staple present)
  *   6  OCSP      — connect to non-stapling server with cert-status (expects failure)
  *
- * Exit code: 0 = expected outcome (see certsel_l3.c docstrings), 1 = failure.
+ * Exit code: the raw libcurl CURLcode from the handshake (0 == CURLE_OK).
+ *            The Python driver asserts on the specific code per scenario
+ *            (e.g. 0 for expected success, CURLE_SSL_INVALIDCERTSTATUS=91
+ *            for the OCSP negative control).
  *
  * Prerequisites (ensured by run_l3.sh before pytest):
  *   ./l3/crl.cfg, ./l3/xs_bridge.cfg etc. written by test_setup.sh
@@ -67,7 +70,6 @@ int main(int argc, char *argv[])
             return 1;
     }
 
-    fprintf(ret == 0 ? stdout : stderr,
-            "[l3] scenario %d %s\n", scenario, ret == 0 ? "PASS" : "FAIL");
+    fprintf(stdout, "[l3] scenario %d curl rc=%d\n", scenario, ret);
     return ret;
 }

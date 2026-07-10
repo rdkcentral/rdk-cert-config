@@ -176,7 +176,10 @@ static int run_l3_scenario(const char *cfg, const char *hrot,
     rdkcertselector_setCurlStatus(cs, curl_rc, url);
     rdkcertselector_free(&cs);
 
-    return curl_rc == 0 ? 0 : 1;
+    /* Return the raw CURLcode so the Python driver can assert on the specific
+     * error (e.g. CURLE_OK=0 for expected success, CURLE_PEER_FAILED_VERIFICATION
+     * for a rejected client cert). */
+    return (int)curl_rc;
 }
 
 /* ── Scenario entry points ──────────────────────────────────────────────────*/
@@ -230,14 +233,16 @@ int run_l3_ocsp_staple(void)
                 (unsigned int)rc, curl_easy_strerror(rc));
     curl_easy_cleanup(curl);
     fprintf(stdout, "[l3] ocsp_staple rc=%u (expected 0)\n", (unsigned int)rc);
-    return rc == CURLE_OK ? 0 : 1;
+    /* Return the raw CURLcode (0 == staple present & good). */
+    return (int)rc;
 }
 
 /* Scenario 6 — OCSP staple absent (negative control): connect to the CRL mTLS
  * server (port 50061) which does NOT implement OCSP stapling.  Uses the CRL
- * client cert from certsel for the mTLS handshake.  With CURLOPT_SSL_VERIFYSTATUS,
- * curl must fail because no OCSP staple is returned.
- * Returns 0 if curl correctly FAILS (expected), 1 if curl unexpectedly succeeds. */
+ * client cert from certsel for the mTLS handshake with CURLOPT_SSL_VERIFYSTATUS.
+ * Expected result: curl fails with CURLE_SSL_INVALIDCERTSTATUS because no OCSP
+ * staple is returned.
+ * Returns the raw CURLcode (non-zero on the expected failure). */
 int run_l3_ocsp_nostaple(void)
 {
     rdkcertselector_h cs = rdkcertselector_new(L3_CFG_CRL, L3_HROT, L3_GRP_CRL);
@@ -271,6 +276,7 @@ int run_l3_ocsp_nostaple(void)
     curl_easy_cleanup(curl);
     rdkcertselector_free(&cs);
 
-    /* PASS when curl FAILS: the server does not staple, so --cert-status must fail */
-    return rc != CURLE_OK ? 0 : 1;
+    /* Return the raw CURLcode; the negative control expects a non-zero
+     * CURLE_SSL_INVALIDCERTSTATUS because the server does not staple. */
+    return (int)rc;
 }

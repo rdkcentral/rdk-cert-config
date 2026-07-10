@@ -60,11 +60,10 @@ for f in "$SHARED_CERTS/crl-client/crl-client.p12" \
 done
 echo "[run_l3] Cert assets verified"
 
-# ── Build L3 certsel config files (absolute cert paths under /opt/certs/) ─────
-if [ -f test/l3-testapp/test_setup.sh ]; then
-    sh test/l3-testapp/test_setup.sh
-    echo "[run_l3] L3 certsel configs written"
-fi
+# The certsel config files under ./l3/ are written by the pytest module fixture
+# (_setup_l3_configs in test_l3_crl_xsign.py), which invokes test_setup.sh once
+# before any L3 test runs. Keeping it there makes the test file self-contained
+# and avoids duplicating the setup step here.
 
 # Verify l3testapp binary was built (requires --enable-l2testing)
 if [ ! -x test/l3-testapp/l3testapp ]; then
