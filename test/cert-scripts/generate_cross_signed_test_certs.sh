@@ -37,8 +37,12 @@
 #   Post-processing (folded in from the former generate_xs_crl_and_expired_bridge.sh):
 #     - empty XS CRLs (*.crl.pem) for every XS CA, required by OpenSSL 3
 #       CRL_CHECK_ALL when the mTLS server verifies the full xsign chain
-#     - a truly-expired OldRoot-expxs bridge, re-bundled into client-expxs.p12
-#     - NewRoot.pem exported as the xsign trust anchor (written LAST)
+#     - a truly-expired OldRoot-expxs bridge
+#     - NewRoot.pem exported as the xsign trust anchor
+#     - client-expxs.p12 bundled with the expired bridge and written LAST, so
+#       consumers can gate on it as a single readiness sentinel (it is written
+#       exactly once, only ever carrying the expired bridge, so there is no
+#       valid-vs-expired race)
 #
 # Environment variables:
 #   CERT_DIR      Root for CA/cert material     (default: /etc/pki/test-xs)
@@ -161,9 +165,9 @@ cat "${OLD_ICA_PEM}" "${OLD_ROOT_PEM}" > "${OLD_CHAIN}"
 XSIGN_CHAIN="${CERT_DIR}/xsign-chain.pem"
 cat "${OLD_ICA_PEM}" "${OLD_ROOT_PEM}" "${XS_BRIDGE}" "${NEW_ROOT_PEM}" > "${XSIGN_CHAIN}"
 
-# Chain: OldICA → OldRoot → expiry-bridge → NewRoot  (for expxs bundle)
-EXPXS_CHAIN="${CERT_DIR}/expxs-chain.pem"
-cat "${OLD_ICA_PEM}" "${OLD_ROOT_PEM}" "${XS_EXPIRY_BRIDGE}" "${NEW_ROOT_PEM}" > "${EXPXS_CHAIN}"
+# NOTE: client-expxs.p12 is intentionally NOT built here. It is assembled once,
+# with the truly-expired bridge, in the post-processing section below (written
+# LAST as the readiness sentinel).
 
 # client-old.p12 — plain chain, no bridge
 SRC_OLD_KEY="$(find_key "client-old")"
@@ -183,16 +187,6 @@ if [ -n "${SRC_XSIG_PEM}" ] && [ -n "${SRC_XSIG_KEY}" ]; then
                   "${OUT_DIR}/client-xsign.p12" "${CERT_PASSWORD}" "client-xsign"
 else
     echo_a "ERROR: client-xsign cert/key not found"; exit 1
-fi
-
-# client-expxs.p12 — leaf + chain + expiry bridge
-SRC_EXPXS_KEY="$(find_key "client-expxs")"
-SRC_EXPXS_PEM="$(find_pem "client-expxs")"
-if [ -n "${SRC_EXPXS_PEM}" ] && [ -n "${SRC_EXPXS_KEY}" ]; then
-    create_pkcs12 "${SRC_EXPXS_PEM}" "${SRC_EXPXS_KEY}" "${EXPXS_CHAIN}" \
-                  "${OUT_DIR}/client-expxs.p12" "${CERT_PASSWORD}" "client-expxs"
-else
-    echo_a "ERROR: client-expxs cert/key not found"; exit 1
 fi
 
 # ── Step 6: Verify bridge certificates ───────────────────────────────────────
@@ -279,7 +273,16 @@ openssl ca \
     -notext 2>/dev/null
 rm -f "${_OLDROOT_EXPIRED_CSR}"
 
-# Re-bundle client-expxs.p12 with the expired bridge
+# Export the NewRoot trust anchor first, so client-expxs.p12 (below) is the
+# very last file written to OUT_DIR.
+[ -f "${_NEWROOT_CERT}" ] && cp "${_NEWROOT_CERT}" "${OUT_DIR}/NewRoot.pem"
+
+# Bundle client-expxs.p12 with the truly-expired bridge. This is the ONLY place
+# client-expxs.p12 is written, and it is written LAST: native-platform/certs.sh
+# gates its xsign copy on this file, so its presence guarantees every other
+# xsign artifact (NewRoot.pem, client-xsign.p12, client-old.p12, XS CRLs) is
+# already in place. Because the only version ever written carries the expired
+# bridge, there is no valid-vs-expired race to lose.
 _EXPXS_KEY=$(find "${CERT_DIR}" -name "client-expxs.key" 2>/dev/null | head -1)
 _EXPXS_PEM=$(find "${CERT_DIR}" -name "client-expxs.pem" 2>/dev/null | head -1)
 _OLD_ICA="${CERT_DIR}/Test-XS-OldRoot/Test-XS-OldICA/certs/Test-XS-OldICA.pem"
@@ -295,11 +298,6 @@ PKCS12_PASS="${CERT_PASSWORD}" openssl pkcs12 -export \
     -passout env:PKCS12_PASS 2>/dev/null
 chmod 600 "${OUT_DIR}/client-expxs.p12"
 rm -f "${_CHAIN_TMP}"
-echo_a "[xs-pki] Replaced expired bridge with truly-expired cert (2024-01-01/02)"
-
-# Copy NewRoot for trust anchor. Written LAST and ONLY here, so the docker
-# native-platform certs.sh gates its xsign copy on this file as the readiness
-# sentinel (avoids racing the client-expxs.p12 double-write above).
-[ -f "${_NEWROOT_CERT}" ] && cp "${_NEWROOT_CERT}" "${OUT_DIR}/NewRoot.pem"
+echo_a "[xs-pki] Bundled client-expxs.p12 with truly-expired bridge (2024-01-01/02)"
 
 echo_a "[xs-pki] Post-processing complete."
