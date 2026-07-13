@@ -141,7 +141,8 @@ static unsigned int do_mtls_curl(const char *url, const char *p12_path,
  * 3. do_mtls_curl()         — makes the real TLS connection.
  * 4. rdkcertselector_setCurlStatus() — feeds the real CURLcode back to certsel.
  *
- * Returns 0 if the TLS connection succeeded (CURLE_OK), 1 otherwise.
+ * Returns the raw CURLcode from libcurl (CURLE_OK == 0 on success) so the
+ * Python driver can assert on the specific error code.
  */
 static int run_l3_scenario(const char *cfg, const char *hrot,
                              const char *group, const char *url)

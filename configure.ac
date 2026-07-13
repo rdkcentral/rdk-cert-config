@@ -148,11 +148,17 @@ AC_C_CONST
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 
-# Check for libcurl (required for L3 mTLS testapp, optional for other components)
+# Check for libcurl (required for L3 mTLS testapp, optional for other components).
+# Both the header and the library must be present; a runtime-only libcurl
+# without dev headers would otherwise fail later at compile time.
 have_libcurl=no
-AC_CHECK_LIB([curl], [curl_easy_init],
+have_curl_h=no
+have_curl_lib=no
+AC_CHECK_HEADERS([curl/curl.h], [have_curl_h=yes], [have_curl_h=no])
+AC_CHECK_LIB([curl], [curl_easy_init], [have_curl_lib=yes], [have_curl_lib=no])
+AS_IF([test "x$have_curl_h" = xyes && test "x$have_curl_lib" = xyes],
     [CURL_LIBS="-lcurl"; have_libcurl=yes],
-    [AC_MSG_WARN([libcurl not found — l3testapp will not build])])
+    [AC_MSG_WARN([libcurl headers/library not found — l3testapp will not build])])
 AC_SUBST([CURL_LIBS])
 AM_CONDITIONAL([HAVE_LIBCURL], [test "x$have_libcurl" = xyes])
 

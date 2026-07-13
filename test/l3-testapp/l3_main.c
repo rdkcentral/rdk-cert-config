@@ -44,6 +44,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <curl/curl.h>
 #include "certsel_l3.h"
 
 int main(int argc, char *argv[])
@@ -52,6 +53,14 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Usage: %s <scenario_id>\n", argv[0]);
         fprintf(stderr, "  1=crl  2=xs_bridge  3=xs_nobridge  4=xs_expxs"
                         "  5=ocsp_staple  6=ocsp_nostaple\n");
+        return 1;
+    }
+
+    /* Initialise libcurl once for the whole process before any curl_easy_init()
+     * in the scenario functions.  Required for thread-safe/portable setup on
+     * all libcurl builds. */
+    if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
+        fprintf(stderr, "[l3] curl_global_init failed\n");
         return 1;
     }
 
@@ -67,9 +76,11 @@ int main(int argc, char *argv[])
         case 6:  ret = run_l3_ocsp_nostaple(); break;
         default:
             fprintf(stderr, "[l3] Unknown scenario %d\n", scenario);
+            curl_global_cleanup();
             return 1;
     }
 
     fprintf(stdout, "[l3] scenario %d curl rc=%d\n", scenario, ret);
+    curl_global_cleanup();
     return ret;
 }

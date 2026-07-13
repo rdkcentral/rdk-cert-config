@@ -38,8 +38,8 @@
 #include "include/rdkcertselector.h"
 #include "include/unit_test.h"
 
-/* certGetAndSet is defined in certsel_seq.c and declared in l2_tst.h
- * via the function prototype there — resolved at link time. */
+/* certGetAndSet is implemented in certsel_seq.c; forward-declare it here so the
+ * sequence 9-17 tests can call it, resolved at link time. */
 int certGetAndSet(rdkcertselector_h, unsigned int, const char *, const char *, rdkcertselectorRetry_t);
 
 /* ──────────────────────────────────────────────────────────────────────────
