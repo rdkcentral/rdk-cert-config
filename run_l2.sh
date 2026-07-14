@@ -27,9 +27,7 @@ cp CertSelector/include/rdkcertselector.h test/l2-sampleapp/include/
 cp CertSelector/src/unit_test.h test/l2-sampleapp/include/
 
 #Build rdk-cert-config & sample application of L2
-# Strip Windows CRLF from all autotools input files so M4/automake get clean LF-only input.
-# This is necessary when the working tree was authored/saved on Windows.
-find . \( -name "configure.ac" -o -name "*.am" -o -name "*.m4" \) -exec sed -i 's/\r$//' {} \;
+
 autoreconf -i
 ./configure --enable-l2testing --prefix=${INSTALL_DIR}
 make && make install
