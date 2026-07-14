@@ -148,6 +148,20 @@ AC_C_CONST
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 
+# Check for libcurl (required for L3 mTLS testapp, optional for other components).
+# Both the header and the library must be present; a runtime-only libcurl
+# without dev headers would otherwise fail later at compile time.
+have_libcurl=no
+have_curl_h=no
+have_curl_lib=no
+AC_CHECK_HEADERS([curl/curl.h], [have_curl_h=yes], [have_curl_h=no])
+AC_CHECK_LIB([curl], [curl_easy_init], [have_curl_lib=yes], [have_curl_lib=no])
+AS_IF([test "x$have_curl_h" = xyes && test "x$have_curl_lib" = xyes],
+    [CURL_LIBS="-lcurl"; have_libcurl=yes],
+    [AC_MSG_WARN([libcurl headers/library not found — l3testapp will not build])])
+AC_SUBST([CURL_LIBS])
+AM_CONDITIONAL([HAVE_LIBCURL], [test "x$have_libcurl" = xyes])
+
 if test x$GTEST_SUPPORT_ENABLED == xfalse; then
 AC_CONFIG_FILES([
      Makefile
@@ -159,6 +173,11 @@ AM_COND_IF([CSPC_RDKCONFIG_SUPPORT_ENABLED],[],[AC_CONFIG_FILES([RdkConfigApi/Ma
 fi
 
 AM_COND_IF([CSPC_L2_TEST],[AC_CONFIG_FILES([test/l2-sampleapp/Makefile])],[])
+if test x$CSPC_L2_TEST = xtrue -a "x$have_libcurl" = xyes; then
+AC_CONFIG_FILES([
+     test/l3-testapp/Makefile
+     ])
+fi
 AM_COND_IF([TEST_RDK_CERTS],[AC_CONFIG_FILES([test/cert-scripts/Makefile test/pkcs11-scripts/Makefile test/patches/Makefile])],[])
 
 if test x$GTEST_SUPPORT_ENABLED == xtrue; then

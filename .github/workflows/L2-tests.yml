@@ -2,7 +2,7 @@ name: L2 Integration Tests
 
 on:
   pull_request:
-    branches: [ develop , main , topic/RDK-57994 ]
+    branches: [ develop , main ]
 
 env:
   AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME }}
@@ -10,12 +10,12 @@ env:
 
 jobs:
   execute-L2-tests-on-pr:
-    name: Execute L2 test suite in L2 container environment
+    name: Execute L2 + L3 test suite in L2 container environment
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
@@ -24,40 +24,66 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
       - name: Pull docker images
         run: |
+          docker pull ghcr.io/rdkcentral/docker-device-mgt-service-test/mockxconf:latest
           docker pull ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
           docker pull ghcr.io/rdkcentral/docker-rdk-ci:latest
 
-      - name: Start l2-container service
+      # mock-xconf generates the CRL and cross-signed PKI for the L3 suite and
+      # exports it to the shared volume. It is started first so its PKI is
+      # being produced while native-platform comes up.
+      - name: Start mock-xconf
         run: |
-          docker run -d --name native-platform -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
+          docker run -d --name mockxconf \
+            -e ENABLE_CRL_L3=true \
+            -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME \
+            ghcr.io/rdkcentral/docker-device-mgt-service-test/mockxconf:latest
 
-      - name: Enter Inside Platform native container and run L2 Test
+      # native-platform's entrypoint runs certs.sh, which waits for mock-xconf's
+      # PKI files on the shared volume, copies them, and installs the trust
+      # anchors before the container's services start. That in-container wait is
+      # the only synchronisation needed, so the workflow does not poll.
+      - name: Start native-platform
         run: |
-          docker exec -i native-platform /bin/bash -c "cd /mnt/L2_CONTAINER_SHARED_VOLUME/ && export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu:/lib/aarch64-linux-gnu:/usr/local/lib: && sh run_l2.sh" 
+          docker run -d --name native-platform \
+            --link mockxconf \
+            --cap-add SYS_ADMIN \
+            --cap-add NET_ADMIN \
+            -e ENABLE_CRL_L3=true \
+            -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME \
+            ghcr.io/rdkcentral/docker-device-mgt-service-test/native-platform:latest
 
-      - name: Copy l2 test results to runner 
+      # run_l2.sh builds the l2sampleapp and runs the L2 pytest suite, then
+      # chains into run_l3.sh because ENABLE_CRL_L3=true. The build runs in the
+      # same container whose certs.sh has already established the trust store.
+      - name: Run L2 + L3 tests
         run: |
-          docker cp native-platform:/tmp/l2_test_report /tmp/L2_TEST_RESULTS
-          ls -l
-          ls -l /tmp/L2_TEST_RESULTS
+          docker exec -i native-platform /bin/bash -c \
+            "cd /mnt/L2_CONTAINER_SHARED_VOLUME && \
+             export ENABLE_CRL_L3=true && \
+             export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu:/lib/aarch64-linux-gnu:/usr/local/lib: && \
+             sh run_l2.sh"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-        with:
-          install: true
+      - name: Copy test results
+        if: always()
+        run: |
+          mkdir -p /tmp/L2_TEST_RESULTS /tmp/L3_TEST_RESULTS
+          docker cp native-platform:/tmp/l2_test_report/. /tmp/L2_TEST_RESULTS/ || echo "No L2 results"
+          docker cp native-platform:/tmp/l3_test_report/. /tmp/L3_TEST_RESULTS/ || echo "No L3 results"
+          ls -l /tmp/L2_TEST_RESULTS /tmp/L3_TEST_RESULTS
 
-      - name: Run CI container
-        run: docker run -e AUTOMATICS_UNAME=${{ secrets.AUTOMATICS_UNAME }} -e AUTOMATICS_PASSCODE=${{ secrets.AUTOMATICS_PASSCODE }} -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME --name ci-container -d ghcr.io/rdkcentral/docker-rdk-ci:latest tail -f /dev/null
-
+      # ── Upload Results ─────────────────────────────────────────────────────
       - name: Upload results
         if: github.repository_owner == 'rdkcentral'
         run: |
+          docker run -e AUTOMATICS_UNAME=${{ secrets.AUTOMATICS_UNAME }} -e AUTOMATICS_PASSCODE=${{ secrets.AUTOMATICS_PASSCODE }} -v ${{ github.workspace }}:/mnt/L2_CONTAINER_SHARED_VOLUME --name ci-container -d ghcr.io/rdkcentral/docker-rdk-ci:latest tail -f /dev/null
           docker cp /tmp/L2_TEST_RESULTS ci-container:/tmp/L2_TEST_RESULTS
-          docker exec -i ci-container bash -c "echo 'Contents in workspace directory' && ls -l && echo '===============================' && echo 'Contents in /tmp/L2_TEST_RESULTS' && ls -l /tmp/L2_TEST_RESULTS && echo '===============================' && git config --global --add safe.directory /mnt/L2_CONTAINER_SHARED_VOLUME && gtest-json-result-push.py /tmp/L2_TEST_RESULTS https://rdkeorchestrationservice.apps.cloud.comcast.net/rdke_orchestration_api/push_unit_test_results /mnt/L2_CONTAINER_SHARED_VOLUME"
+          docker cp /tmp/L3_TEST_RESULTS ci-container:/tmp/L3_TEST_RESULTS
+          docker exec -i ci-container bash -c "git config --global --add safe.directory /mnt/L2_CONTAINER_SHARED_VOLUME && gtest-json-result-push.py /tmp/L2_TEST_RESULTS https://rdkeorchestrationservice.apps.cloud.comcast.net/rdke_orchestration_api/push_unit_test_results /mnt/L2_CONTAINER_SHARED_VOLUME && gtest-json-result-push.py /tmp/L3_TEST_RESULTS https://rdkeorchestrationservice.apps.cloud.comcast.net/rdke_orchestration_api/push_unit_test_results /mnt/L2_CONTAINER_SHARED_VOLUME"
 
-  
+      - name: Cleanup
+        if: always()
+        run: |
+          docker logs mockxconf || true
+          docker rm -f mockxconf native-platform ci-container || true

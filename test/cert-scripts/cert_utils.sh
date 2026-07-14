@@ -19,8 +19,8 @@
 # Utility functions for certificate generation
 # This file contains common functions used by create_ca.sh and create_leaf_cert.sh
 
-# Default directory for certificates
-CERT_DIR="/etc/pki"
+# Default directory for certificates (preserve caller's value if already set)
+CERT_DIR="${CERT_DIR:-/etc/pki}"
 
 # Echo function that prints only when DEBUG_ENABLED is set
 echo_t() {
@@ -268,6 +268,9 @@ create_pkcs12() {
     return 1
   fi
 
+  # PKCS#12 bundles contain a private key; restrict to owner-only access.
+  chmod 600 "${output_p12}"
+
   echo_t "PKCS#12 keystore created at ${output_p12}"
   return 0
 }
@@ -399,4 +402,137 @@ keyUsage = critical, digitalSignature, keyEncipherment
 EOF
 
   echo_t "OpenSSL config file created at ${output_path}"
+}
+
+# Create per-CA openssl.cnf for openssl ca database operations.
+# Used by --ca-track signing, CRL generation, and runtime revocation.
+create_ca_db_config() {
+  local ca_path=$1
+  local ca_name=$2
+  local config_path="${ca_path}/openssl.cnf"
+
+  if [ -f "${config_path}" ]; then
+    echo_t "CA DB config already exists at ${config_path}"
+    return 0
+  fi
+
+  cat > "${config_path}" << CAEOF
+[ ca ]
+default_ca = CA_default
+
+[ CA_default ]
+dir              = ${ca_path}
+database         = \$dir/index.txt
+serial           = \$dir/serial
+crlnumber        = \$dir/crlnumber
+certificate      = \$dir/certs/${ca_name}.pem
+private_key      = \$dir/private/${ca_name}.key
+new_certs_dir    = \$dir/certs
+default_md       = sha256
+preserve         = no
+policy           = policy_loose
+default_crl_days = 365
+default_days     = 365
+
+[ policy_loose ]
+countryName             = optional
+stateOrProvinceName     = optional
+organizationName        = optional
+organizationalUnitName  = optional
+commonName              = supplied
+emailAddress            = optional
+UID                     = optional
+CAEOF
+
+  echo_t "CA DB config created at ${config_path}"
+}
+
+# Generate an empty CRL for a CA.
+# Creates the CA DB config if it doesn't exist.
+generate_empty_crl() {
+  local ca_path=$1
+  local ca_name=$2
+  local output_crl=$3
+  local crl_days=${4:-365}
+
+  create_ca_db_config "${ca_path}" "${ca_name}"
+
+  mkdir -p "${ca_path}/crl"
+  [ -f "${ca_path}/crlnumber" ] || printf "01\n" > "${ca_path}/crlnumber"
+  [ -f "${ca_path}/index.txt" ] || touch "${ca_path}/index.txt"
+
+  openssl ca -config "${ca_path}/openssl.cnf" -gencrl \
+    -out "${output_crl}" -crldays "${crl_days}" -batch 2>/dev/null
+
+  echo_t "Empty CRL generated at ${output_crl}"
+}
+
+# Sign a certificate using openssl ca (tracked in CA database).
+# The cert serial is recorded in index.txt, enabling later revocation.
+#
+# Usage: sign_certificate_tracked <ca_path> <ca_name> <csr_path> <output_cert>
+#            <validity> <cert_type> [san_value] [eku_value] [aia_value]
+sign_certificate_tracked() {
+  local ca_path=$1
+  local ca_name=$2
+  local csr_path=$3
+  local output_cert=$4
+  local validity=${5:-365}
+  local cert_type=${6:-client}
+  local san_value=${7:-}
+  local eku_value=${8:-}
+  local aia_value=${9:-}
+
+  create_ca_db_config "${ca_path}" "${ca_name}"
+
+  # Build a temporary extensions section
+  local ext_name="tracked_$$"
+  local merged_config="/tmp/_ca_tracked_$$.cnf"
+  cp "${ca_path}/openssl.cnf" "${merged_config}"
+
+  cat >> "${merged_config}" << EXTEOF
+
+[ ${ext_name} ]
+basicConstraints       = CA:FALSE
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always
+EXTEOF
+
+  # keyUsage
+  if [ "${eku_value}" = "OCSPSigning" ]; then
+    echo "keyUsage = critical,digitalSignature" >> "${merged_config}"
+  else
+    echo "keyUsage = critical,digitalSignature,keyEncipherment" >> "${merged_config}"
+  fi
+
+  # extendedKeyUsage
+  if [ -n "${eku_value}" ]; then
+    echo "extendedKeyUsage = critical,${eku_value}" >> "${merged_config}"
+  elif [ "${cert_type}" = "server" ]; then
+    echo "extendedKeyUsage = serverAuth" >> "${merged_config}"
+  else
+    echo "extendedKeyUsage = critical,clientAuth" >> "${merged_config}"
+  fi
+
+  # SAN
+  if [ -n "${san_value}" ]; then
+    echo "subjectAltName = ${san_value}" >> "${merged_config}"
+  fi
+
+  # AIA (OCSP)
+  if [ -n "${aia_value}" ]; then
+    echo "authorityInfoAccess = OCSP;URI:${aia_value}" >> "${merged_config}"
+  fi
+
+  openssl ca \
+    -config "${merged_config}" \
+    -in "${csr_path}" \
+    -out "${output_cert}" \
+    -extensions "${ext_name}" \
+    -days "${validity}" \
+    -batch \
+    -notext 2>/dev/null
+
+  rm -f "${merged_config}"
+  echo_t "Certificate signed (CA-tracked) at ${output_cert}"
 }
