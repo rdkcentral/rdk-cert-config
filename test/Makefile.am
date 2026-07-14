@@ -15,10 +15,19 @@
 # SPDX-License-Identifier: Apache-2.0
 # RDK-CERT-CONFIG-ORIGINAL-WORK
 
+# SUBDIRS must be assigned once and appended to; separate `SUBDIRS = ...`
+# statements under different conditionals would overwrite each other.
+SUBDIRS =
+
 if CSPC_L2_TEST
-SUBDIRS = l2-sampleapp
+SUBDIRS += l2-sampleapp
+# l3-testapp needs libcurl; only build it when the probe in configure.ac
+# found the library (HAVE_LIBCURL).
+if HAVE_LIBCURL
+SUBDIRS += l3-testapp
+endif
 endif
 
 if TEST_RDK_CERTS
-SUBDIRS = cert-scripts pkcs11-scripts patches
+SUBDIRS += cert-scripts pkcs11-scripts patches
 endif

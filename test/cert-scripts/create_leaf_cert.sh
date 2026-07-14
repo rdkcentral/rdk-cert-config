@@ -36,6 +36,11 @@
 #   --no-password           Generate a P12 file with no password
 #   --wrong-password        Generate a P12 file with incorrect password
 #   --missing-cert          Simulate a missing certificate file
+#   --ca-track              Sign via 'openssl ca' (tracked in CA DB for revocation)
+#   --san <SAN>             Subject Alternative Name (e.g. DNS:mockxconf)
+#   --eku <EKU>             Extended Key Usage (serverAuth|clientAuth|OCSPSigning)
+#   --aia <URI>             Authority Information Access OCSP responder URI
+#   --no-p12                Skip PKCS#12 (.p12) bundle generation
 #   --help                  Display this help message
 
 # Import utility functions
@@ -91,6 +96,11 @@ VALIDITY=1
 FAILURE_MODE=""
 CERT_PASSWORD="changeit"
 COMMON_NAME=""  # CN parameter for certificate
+CA_TRACK=""     # When set, sign via openssl ca (tracked in CA DB for revocation)
+SAN_VALUE=""    # Custom SAN (e.g., DNS:mockxconf)
+EKU_VALUE=""    # Custom EKU (serverAuth|clientAuth|OCSPSigning)
+AIA_VALUE=""    # Authority Information Access OCSP URI
+NO_P12=""       # Skip P12 generation
 
 # Parse command line arguments
 parse_args() {
@@ -179,6 +189,27 @@ parse_args() {
         echo_t "Will simulate missing certificate file..."
         shift
         ;;
+      --ca-track)
+        CA_TRACK="true"
+        echo_t "Certificate will be tracked in CA database..."
+        shift
+        ;;
+      --san)
+        SAN_VALUE="$2"
+        shift 2
+        ;;
+      --eku)
+        EKU_VALUE="$2"
+        shift 2
+        ;;
+      --aia)
+        AIA_VALUE="$2"
+        shift 2
+        ;;
+      --no-p12)
+        NO_P12="true"
+        shift
+        ;;
       --help)
         show_help
         exit 0
@@ -250,6 +281,12 @@ Options:
   --no-password           Generate a P12 file with no password
   --wrong-password        Generate a P12 file with incorrect password
   --missing-cert          Simulate a missing certificate file
+  --ca-track              Sign via 'openssl ca' so the cert is tracked in the CA
+                          database (enables later revocation)
+  --san <SAN>             Subject Alternative Name (e.g. DNS:mockxconf)
+  --eku <EKU>             Extended Key Usage (serverAuth|clientAuth|OCSPSigning)
+  --aia <URI>             Authority Information Access OCSP responder URI
+  --no-p12                Skip PKCS#12 (.p12) bundle generation
   --help                  Display this help message
 
 Examples:
@@ -325,14 +362,22 @@ generate_leaf_cert() {
   fi
 
   # Sign the CSR with the CA
-  sign_certificate "${CERT_TYPE}" \
-    "${ca_path}/csr/${CERT_NAME}.csr" \
-    "${ca_path}/certs/${CA_NAME}.pem" \
-    "${ca_path}/private/${CA_NAME}.key" \
-    "${CERT_DIR}/openssl.cnf" \
-    "${ca_path}/certs/${CERT_NAME}.pem" \
-    "${VALIDITY}" \
-    "${cert_extensions}"
+  if [ "${CA_TRACK}" = "true" ]; then
+    # Sign via openssl ca — cert tracked in CA database for live revocation
+    sign_certificate_tracked "${ca_path}" "${CA_NAME}" \
+      "${ca_path}/csr/${CERT_NAME}.csr" \
+      "${ca_path}/certs/${CERT_NAME}.pem" \
+      "${VALIDITY}" "${CERT_TYPE}" "${SAN_VALUE}" "${EKU_VALUE}" "${AIA_VALUE}"
+  else
+    sign_certificate "${CERT_TYPE}" \
+      "${ca_path}/csr/${CERT_NAME}.csr" \
+      "${ca_path}/certs/${CA_NAME}.pem" \
+      "${ca_path}/private/${CA_NAME}.key" \
+      "${CERT_DIR}/openssl.cnf" \
+      "${ca_path}/certs/${CERT_NAME}.pem" \
+      "${VALIDITY}" \
+      "${cert_extensions}"
+  fi
 
     # Check if certificate signing was successful
     if [ $? -ne 0 ]; then
@@ -350,25 +395,26 @@ generate_leaf_cert() {
     chain_file="${ca_path}/certs/${CA_NAME}.pem"
   fi
 
-  # Create PKCS#12 keystore
-  create_pkcs12 \
-    "${ca_path}/certs/${CERT_NAME}.pem" \
-    "${ca_path}/private/${CERT_NAME}.key" \
-    "${chain_file}" \
-    "${ca_path}/certs/${CERT_NAME}.p12" \
-    "${CERT_PASSWORD}" \
-    "${CERT_NAME}"
+  # Create PKCS#12 keystore (skip if --no-p12)
+  if [ "${NO_P12}" != "true" ]; then
+    create_pkcs12 \
+      "${ca_path}/certs/${CERT_NAME}.pem" \
+      "${ca_path}/private/${CERT_NAME}.key" \
+      "${chain_file}" \
+      "${ca_path}/certs/${CERT_NAME}.p12" \
+      "${CERT_PASSWORD}" \
+      "${CERT_NAME}"
 
-  # Check if PKCS#12 creation was successful
-  if [ $? -ne 0 ]; then
-    echo_a "Error: Failed to create PKCS#12 file for ${CERT_NAME}."
-    echo_t "Please check that all required files exist and are valid."
-    exit 1
+    # Check if PKCS#12 creation was successful
+    if [ $? -ne 0 ]; then
+      echo_a "Error: Failed to create PKCS#12 file for ${CERT_NAME}."
+      echo_t "Please check that all required files exist and are valid."
+      exit 1
+    fi
   fi
 
   echo_t "Leaf certificate created at ${ca_path}/certs/${CERT_NAME}.pem"
   echo_t "Private key created at ${ca_path}/private/${CERT_NAME}.key"
-  echo_t "PKCS#12 file created at ${ca_path}/certs/${CERT_NAME}.p12"
 
   # Handle failure modes if specified
   if [ "${FAILURE_MODE}" = "corrupted" ]; then
