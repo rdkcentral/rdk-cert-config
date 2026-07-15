@@ -40,7 +40,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
+#include <openssl/sha.h>
 #include <stdint.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -269,6 +269,24 @@ char *rdkcertselector_getEngine( rdkcertselector_h thiscertsel ) {
 
 #define FILESCHEME "file://"
 
+void print_sha256(const char *label, const unsigned char *buffer, size_t len)
+{
+    unsigned char hash[SHA256_DIGEST_LENGTH];    
+    EXTRA_DEBUG_LOG("[certdbg] len:%d\n", len);
+    if (!buffer || len == 0) {
+        EXTRA_DEBUG_LOG("[certdbg] %s: invalid buffer\n", label ? label : "SHA256");
+        return;
+    }
+
+    SHA256(buffer, len, hash);
+    EXTRA_DEBUG_LOG("[certdbg] %s SHA256: ",label ? label : "Buffer");
+
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+        EXTRA_DEBUG_LOG("%02x", hash[i]);
+    }
+    EXTRA_DEBUG_LOG("\n");
+}
+
 /**
  *  API for RDK Cert Selection operations.
  *  A cert file & it's passcode will be returned by the API on success.
@@ -391,6 +409,7 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
       char *pc = NULL;
       size_t pcsz = 0;
       retval = certselectorFileError; // look for cred file, error out if not found
+      DEBUG_LOG ("%s: cred ref = %s\n",__func__,thisCertCredRef);
       if ( rdkconfig_getStr( &pc, &pcsz, thisCertCredRef ) == RDKCONFIG_OK ) {
         if ( pc != NULL ) {
           // don't include any newline at end and don't add an additional null terminator
@@ -401,16 +420,22 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
 
           if ( pcsz < (sizeof(thiscertsel->certPass)-1) ) {
             memcpy( thiscertsel->certPass, pc, pcsz );
+            print_sha256("PC", (unsigned char *)pc,strlen(pc));
+            print_sha256("Hash", (unsigned char *)thiscertsel->certPass,strlen(thiscertsel->certPass));
             thiscertsel->certPass[pcsz] = '\0';  // data coming in does not assume string so need to null terminate
+            print_sha256("Hash with Null", (unsigned char *)thiscertsel->certPass,strlen(thiscertsel->certPass));
+              
             rdkconfig_freeStr( &pc, pcsz );
             retval = certselectorOk; // found it
-            EXTRA_DEBUG_LOG( " %s:got the passcode\n", __FUNCTION__ );
+            EXTRA_DEBUG_LOG( "%s:got the passcode\n", __FUNCTION__ );
             break; // found it, finish up
           } else {
             ERROR_LOG( " %s:pc did not fit (%zu)\n", __FUNCTION__, pcsz );
             rdkconfig_freeStr( &pc, pcsz );
           }
         } // pc not null
+        else
+          DEBUG_LOG ("%s: received passcode is NULL\n",__func_  
       } // if rdkconfig_get is ok
 
       DEBUG_LOG( " %s:credential reference not found (%u)\n", __FUNCTION__, retval );
@@ -486,6 +511,14 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
     if ( thiscertsel->certStat[certIndx] != CERTSTAT_NOTBAD ) {
       DEBUG_LOG( " %s:returning last bad cert [%s] index [%u]\n", __FUNCTION__, thiscertsel->certUri, certIndx );
     }
+    if (certUri == NULL)
+           DEBUG_LOG ( "%s: cert URI is NULL\n");
+    else
+           DEBUG_LOG( " %s:returning [%s:%s] index [%u]\n", __FUNCTION__, thiscertsel->certUri, "*****", certIndx );
+
+    if (certPass == NULL)
+           DEBUG_LOG ( "%s: cert pass is NULL\n");
+  
     EXTRA_DEBUG_LOG( " %s:returning [%s:%s] index [%u]\n", __FUNCTION__, thiscertsel->certUri, "*****", certIndx );
   }
   EXTRA_DEBUG_LOG( " %s:returning %d\n", __FUNCTION__, retval );
