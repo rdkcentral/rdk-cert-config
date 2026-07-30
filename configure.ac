@@ -158,7 +158,7 @@ AC_CHECK_HEADERS([curl/curl.h], [have_curl_h=yes], [have_curl_h=no])
 AC_CHECK_LIB([curl], [curl_easy_init], [have_curl_lib=yes], [have_curl_lib=no])
 AS_IF([test "x$have_curl_h" = xyes && test "x$have_curl_lib" = xyes],
     [CURL_LIBS="-lcurl"; have_libcurl=yes],
-    [AC_MSG_WARN([libcurl headers/library not found — l3testapp will not build])])
+    [AC_MSG_WARN([libcurl headers/library not found - l3testapp will not build])])
 AC_SUBST([CURL_LIBS])
 AM_CONDITIONAL([HAVE_LIBCURL], [test "x$have_libcurl" = xyes])
 
