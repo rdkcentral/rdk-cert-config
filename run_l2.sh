@@ -56,3 +56,4 @@ if [ $L2_RC -ne 0 ] || [ $L3_RC -ne 0 ]; then
     exit 1
 fi
 exit 0
+
