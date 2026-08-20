@@ -116,21 +116,22 @@ static unsigned long filetime( const char *fname );
 **/
 rdkcertselector_h rdkcertselector_new(const char *certsel_path, const char *hrotprop_path, const char *cert_group ) {
 
+  printf("Creating new cert selector instance\n");
   // if no cert group given, return error
   if (( cert_group == NULL ) || ( *cert_group == '\0' )) {
-    ERROR_LOG( " %s:bad cert_group pointer\n", __FUNCTION__ );
+    printf( " %s:bad cert_group pointer\n", __FUNCTION__ );
     return NULL;
   }
   // cert group cannot contain a "|" character or a ',' character
   if ( includesChars( cert_group, DELIM_CHAR, GRPDELIM_CHAR ) == 1 ) {
-    ERROR_LOG( " %s:bad cert_group character [%s]\n", __FUNCTION__, cert_group );
+    printf( " %s:bad cert_group character [%s]\n", __FUNCTION__, cert_group );
     return NULL;
   }
 
   // allocate space for object
   rdkcertselector_t *thiscertsel = (rdkcertselector_t *)malloc( sizeof(rdkcertselector_t) );
   if ( thiscertsel == NULL ) {
-    ERROR_LOG( " %s:memory error\n", __FUNCTION__ );
+    printf( " %s:memory error\n", __FUNCTION__ );
     return NULL;
   }
 
@@ -143,24 +144,24 @@ rdkcertselector_h rdkcertselector_new(const char *certsel_path, const char *hrot
   if ( certsel_path == DEFAULT_CONFIG ) certsel_path = DEFAULT_CONFIG_PATH;
   size_t paramlen = strlen( certsel_path );
   if ( paramlen >= sizeof(thiscertsel->certSelPath)-1 ) {
-    ERROR_LOG( " %s:string size error, certSelPath (%zu)\n", __FUNCTION__, paramlen );
+    printf( " %s:string size error, certSelPath (%zu)\n", __FUNCTION__, paramlen );
     free( thiscertsel );
     return NULL;
   }
   strcpy( thiscertsel->certSelPath, certsel_path );
-
+  printf("rdkcertselector_new()->Cert selector path: %s\n", thiscertsel->certSelPath);
   // hardware root of trust properties file path from argument or use default
   if ( hrotprop_path == DEFAULT_HROT ) hrotprop_path = DEFAULT_HROTPROP_PATH;
 
   // copy in cert group, but check size
   paramlen = strlen( cert_group );
   if ( paramlen >= sizeof(thiscertsel->certGroup)-1 ) {
-    ERROR_LOG( " %s:string size error, cert_group (%zu)\n", __FUNCTION__, paramlen );
+    printf( " %s:string size error, cert_group (%zu)\n", __FUNCTION__, paramlen );
     free( thiscertsel );
     return NULL;
   }
   strcpy( thiscertsel->certGroup, cert_group );
-
+  printf("rdkcertselector_new()->Cert group: %s\n", thiscertsel->certGroup);
   // open config file and look for cert group in first column
   thiscertsel->certIndx = 0;
   thiscertsel->certUri[0] = '\0';
@@ -171,9 +172,9 @@ rdkcertselector_h rdkcertselector_new(const char *certsel_path, const char *hrot
 
   // first look for a cert belonging to cert group, if not found then fail
   rdkcertselectorStatus_t certstat = certsel_findCert( thiscertsel );
-
+  printf("rdkcertselector_new()->certsel_findCert() returned: %d\n", certstat);
   if ( certstat != certselectorOk ) {
-    ERROR_LOG( " %s:cert not found for %s\n", __FUNCTION__, cert_group );
+    printf( " %s:cert not found for %s\n", __FUNCTION__, cert_group );
     free( thiscertsel );
     return NULL;
   }
@@ -184,7 +185,7 @@ rdkcertselector_h rdkcertselector_new(const char *certsel_path, const char *hrot
   hrotline[MAX_LINE_LENGTH + 1]='1';
   FILE *hrotfp = fopen( hrotprop_path, "r" );
   if ( hrotfp == NULL) {
-    ERROR_LOG( " %s:hrot file, %s, not found\n", __FUNCTION__, hrotprop_path );
+    printf( " %s:hrot file, %s, not found\n", __FUNCTION__, hrotprop_path );
     // if no file, then no engine expected
   } else {
 
@@ -193,7 +194,7 @@ rdkcertselector_h rdkcertselector_new(const char *certsel_path, const char *hrot
 
       // check if line from file was truncated
       if ( hrotline[MAX_LINE_LENGTH + 1] != '1' ) {
-        ERROR_LOG( " %s: hrot line too long\n", __FUNCTION__ );
+        printf( " %s: hrot line too long\n", __FUNCTION__ );
         continue;
       } else {
 
@@ -205,12 +206,12 @@ rdkcertselector_h rdkcertselector_new(const char *certsel_path, const char *hrot
         if ( strncmp( hrotline, ENGINETAG, sizeof(ENGINETAG)-1 ) == 0 ) {
           strncpy( thiscertsel->hrotEngine, (hrotline+sizeof(ENGINETAG)-1), sizeof(thiscertsel->hrotEngine)-1 );
           thiscertsel->hrotEngine[ENGINE_MAX] = '\0'; // terminate if necessary to truncate
-          EXTRA_DEBUG_LOG( " %s:hroteng[%s], hrotpath[%s]\n", __FUNCTION__, thiscertsel->hrotEngine, hrotprop_path );
+          printf( " %s:hroteng[%s], hrotpath[%s]\n", __FUNCTION__, thiscertsel->hrotEngine, hrotprop_path );
           break;
         }
       } // end else line read ok
     } // end while
-
+    printf("rdkcertselector_new()->return: %p\n", (void*)thiscertsel);
     fclose( hrotfp );
   } // end else
 
@@ -225,7 +226,7 @@ rdkcertselector_h rdkcertselector_new(const char *certsel_path, const char *hrot
 void rdkcertselector_free( rdkcertselector_h *thiscertsel ) {
   if ( thiscertsel != NULL && *thiscertsel != NULL ) {
     if ( (*thiscertsel)->reserved1 != CHK_RESERVED1 ) {
-      ERROR_LOG( " %s:WARNING: corrupted object [%lx]\n", __FUNCTION__, (*thiscertsel)->reserved1 );
+      printf( " %s:WARNING: corrupted object [%lx]\n", __FUNCTION__, (*thiscertsel)->reserved1 );
     }
     memwipe( (*thiscertsel)->certPass, sizeof( (*thiscertsel)->certPass ) );
     memwipe( (*thiscertsel)->certCredRef, sizeof( (*thiscertsel)->certCredRef ) );
@@ -246,7 +247,7 @@ void rdkcertselector_free( rdkcertselector_h *thiscertsel ) {
 char *rdkcertselector_getEngine( rdkcertselector_h thiscertsel ) {
   char *hroteng = NULL;
   if ( thiscertsel == NULL ) {
-    ERROR_LOG( " %s:null argument\n", __FUNCTION__ );
+    printf( " %s:null argument\n", __FUNCTION__ );
     return NULL;
   }
 
@@ -287,25 +288,32 @@ char *rdkcertselector_getEngine( rdkcertselector_h thiscertsel ) {
 **/
 rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, char **certUri, char **certPass ) {
 
+  printf( "rdkcertselector_getCert()->enter \n");
+
   if ( thiscertsel == NULL ) {
-    ERROR_LOG( " %s:null argument\n", __FUNCTION__ );
+    printf( " %s:null argument\n", __FUNCTION__ );
     return certselectorBadPointer;
   }
   if ( certUri == NULL || certPass == NULL ) {
-    ERROR_LOG( " %s:null argument(s)\n", __FUNCTION__ );
+    printf( " %s:null argument(s)\n", __FUNCTION__ );
     return certselectorBadArgument;
   }
 
   if ( thiscertsel->state != cssReadyToGiveCert ) {
-    ERROR_LOG( " %s:unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->state, cssReadyToGiveCert );
+    printf( " %s:unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->state, cssReadyToGiveCert );
     return certselectorGeneralFailure;
   }
+  printf( "rdkcertselector_getCert()->current state thiscertsel->state = %d cssReadyToGiveCert\n", thiscertsel->state, cssReadyToGiveCert);
 
   char *thisCertUri = thiscertsel->certUri;
   char *thisCertCredRef = thiscertsel->certCredRef;
 
+  printf( "rdkcertselector_getCert()->thisCertUri = %s\n", thisCertUri );
+  printf( "rdkcertselector_getCert()->thisCertCredRef = %s\n", thisCertCredRef );
+  printf( "rdkcertselector_getCert()->thisCertStat = %d\n", thiscertsel->certStat[thiscertsel->certIndx] );
+
   if ( thisCertUri[0] == '\0' || thisCertCredRef[0] == '\0' ) {
-    ERROR_LOG( " %s:invalid argument(s) [%s|%s]\n", __FUNCTION__, thisCertUri, thisCertCredRef );
+    printf( " %s:invalid argument(s) [%s|%s]\n", __FUNCTION__, thisCertUri, thisCertCredRef );
     return certselectorBadArgument;
   }
 
@@ -313,6 +321,7 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
   rdkcertselectorStatus_t findval = certselectorGeneralFailure; // used when looking for next cert
   uint16_t certIndx = 0;
 
+   printf( "rdkcertselector_getCert()->checking certs in config file \n");
   // while checking certs in config file, break if cert found or if no more certs available
   //                                      continue if this cert is not ok and more certs available
   while ( thisCertUri[0] != '\0' ) {
@@ -322,26 +331,23 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
     if ( strncmp( certFile, FILESCHEME, sizeof(FILESCHEME)-1 ) == 0 ) {
       certFile += (sizeof(FILESCHEME)-1);
     }
-    ERROR_LOG( " %s:<DBG>Trace_1\n", __FUNCTION__ );
+
     // get date from file
     struct stat fileStat;
     int statret = stat( certFile, &fileStat );
-    
-    ERROR_LOG( " %s:<DBG>statret(%u)\n", __FUNCTION__, statret );
-      
+
     if ( statret != 0 ) {  // file error
-      ERROR_LOG( " %s:cert file not found [%s]\n", __FUNCTION__, certFile );
-      ERROR_LOG( " %s:cert file not found, clear stat [%u], continue?\n", __FUNCTION__, certIndx );
+      printf( " %s:cert file not found [%s]\n", __FUNCTION__, certFile );
+      printf( " %s:cert file not found, clear stat [%u], continue?\n", __FUNCTION__, certIndx );
 
       thiscertsel->certStat[certIndx] = CERTSTAT_NOTBAD; // file does not exist, clear certstat for if it appears again
 
       findval = certsel_findNextCert( thiscertsel );  // next cert
       if ( findval != certselectorOk ) {
-        ERROR_LOG( " %s:next cert not found (%u)\n", __FUNCTION__, findval );
+        printf( " %s:next cert not found (%u)\n", __FUNCTION__, findval );
         retval = certselectorFileNotFound;
         break; // give up
       }
-      ERROR_LOG( " %s:Final Val Trace_2 (%u)\n", __FUNCTION__, findval );
       // next cert
       thisCertUri = thiscertsel->certUri;
       thisCertCredRef = thiscertsel->certCredRef;
@@ -353,30 +359,30 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
 
       // file exists, check time stamp
       time_t modTime = fileStat.st_mtime;
-      ERROR_LOG( " %s:cert file was bad[%s|%lu]\n", __FUNCTION__, certFile, (unsigned long)modTime );
+      printf( " %s:cert file was bad[%s|%lu]\n", __FUNCTION__, certFile, (unsigned long)modTime );
 
       // file was bad, see if it has changed
       unsigned long badTime = thiscertsel->certStat[certIndx];
       if ( badTime == modTime ) {
         // file did not change, find next cert, continue
-        ERROR_LOG( " %s:cert file unchanged[%s|%lu]\n", __FUNCTION__, certFile, (unsigned long)modTime );
+        printf( " %s:cert file unchanged[%s|%lu]\n", __FUNCTION__, certFile, (unsigned long)modTime );
 
         retval = certsel_findNextCert( thiscertsel ); // next cert
         if ( retval != certselectorOk ) {
-          ERROR_LOG( " %s:next cert not found (%u)\n", __FUNCTION__, retval );
+          printf( " %s:next cert not found (%u)\n", __FUNCTION__, retval );
           retval = certselectorFileNotFound;
           break; // give up
         }
 
         thisCertUri = thiscertsel->certUri;
         thisCertCredRef = thiscertsel->certCredRef;
-        ERROR_LOG( " %s:next cert found (%s|%s), continuing\n", __FUNCTION__, thisCertUri, thisCertCredRef );
+        printf( " %s:next cert found (%s|%s), continuing\n", __FUNCTION__, thisCertUri, thisCertCredRef );
         continue;  // evaluate this next cert
       } else { // file was marked bad, but has changed
 
         // file did change, clear bad status and try it again
         certIndx = thiscertsel->certIndx;  // index may have changed
-        ERROR_LOG( " %s:cert file changed from [%s|%lu], clear stat [%u], breaking\n", __FUNCTION__, certFile, badTime, certIndx );
+        printf( " %s:cert file changed from [%s|%lu], clear stat [%u], breaking\n", __FUNCTION__, certFile, badTime, certIndx );
         thiscertsel->certStat[certIndx] = CERTSTAT_NOTBAD;  // cert status is unknown
       } // end else file changed
       thisCertUri = thiscertsel->certUri;
@@ -384,12 +390,12 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
       retval = certselectorOk;
       // drop down and get passcode, then break;
     } else { // found the file that's not marked bad
-      ERROR_LOG( " %s:file not marked bad\n", __FUNCTION__ );
+      printf( " %s:file not marked bad\n", __FUNCTION__ );
       retval = certselectorOk;
     }
-    
+
     if ( retval == certselectorOk ) {
-      ERROR_LOG( " %s:get passcode (%u)\n", __FUNCTION__, retval );
+      printf( " %s:get passcode (%u)\n", __FUNCTION__, retval );
       // file exists and is not the same as bad (or was not marked as bad), so get the passcode and return them
       char *pc = NULL;
       size_t pcsz = 0;
@@ -407,7 +413,7 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
             thiscertsel->certPass[pcsz] = '\0';  // data coming in does not assume string so need to null terminate
             rdkconfig_freeStr( &pc, pcsz );
             retval = certselectorOk; // found it
-            ERROR_LOG( " %s:got the passcode\n", __FUNCTION__ );
+            printf( " %s:got the passcode\n", __FUNCTION__ );
             break; // found it, finish up
           } else {
             ERROR_LOG( " %s:pc did not fit (%zu)\n", __FUNCTION__, pcsz );
@@ -416,11 +422,11 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
         } // pc not null
       } // if rdkconfig_get is ok
 
-      ERROR_LOG( " %s:credential reference not found (%u)\n", __FUNCTION__, retval );
+      printf( " %s:credential reference not found (%u)\n", __FUNCTION__, retval );
       // could not retrieve the passcode, get next cert
       retval = certsel_findNextCert( thiscertsel );
       if ( retval != certselectorOk ) {
-        ERROR_LOG( " %s:next cert not found (%u)\n", __FUNCTION__, retval );
+        printf( " %s:next cert not found (%u)\n", __FUNCTION__, retval );
         retval = certselectorFileNotFound;
         break; // give up
       }
@@ -440,11 +446,11 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
     thiscertsel->state = cssReadyToCheckCert;
 
     if ( thiscertsel->certStat[certIndx] != CERTSTAT_NOTBAD ) {
-      ERROR_LOG( " %s:INTERNAL ERROR: current stat should not be %lu\n", __FUNCTION__,  thiscertsel->certStat[certIndx] );
+      printf( " %s:INTERNAL ERROR: current stat should not be %lu\n", __FUNCTION__,  thiscertsel->certStat[certIndx] );
     }
-    ERROR_LOG( " %s:returning [%s:%s] index [%u]\n", __FUNCTION__, thiscertsel->certUri, "*****", certIndx );
+    printf( " %s:returning [%s:%s] index [%u]\n", __FUNCTION__, thiscertsel->certUri, "*****", certIndx );
   }
-  EXTRA_DEBUG_LOG( " %s:returning %d\n", __FUNCTION__, retval );
+  printf( " %s:returning %d\n", __FUNCTION__, retval );
   return retval;
 } // rdkcertselector_getCert( )
 
@@ -464,12 +470,12 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
 rdkcertselectorRetry_t rdkcertselector_setCurlStatus( rdkcertselector_h thiscertsel, unsigned int curlStat, const char *logEndpoint ) {
 
   if ( thiscertsel == NULL ) {
-    ERROR_LOG( " %s:null argument\n", __FUNCTION__ );
+    printf( " %s:null argument\n", __FUNCTION__ );
     return NO_RETRY;
   }
 
   if ( thiscertsel->state != cssReadyToCheckCert ) {
-    ERROR_LOG( " %s:unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->state, cssReadyToCheckCert );
+    printf( " %s:unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->state, cssReadyToCheckCert );
     return RETRY_ERROR;
   }
 
@@ -478,38 +484,38 @@ rdkcertselectorRetry_t rdkcertselector_setCurlStatus( rdkcertselector_h thiscert
 
   uint16_t certIndx = thiscertsel->certIndx;
   if ( certIndx >= LIST_MAX ) {
-    ERROR_LOG( " %s:INTERNAL ERROR: certIndx [%u]\n", __FUNCTION__, certIndx );
+    printf( " %s:INTERNAL ERROR: certIndx [%u]\n", __FUNCTION__, certIndx );
     return RETRY_ERROR;
   }
 
   if ( curlStat == CURL_SUCCESS ) {
 
     //DEBUG_LOG( "curl SUCCESS [%s]\n", logEndpoint!=NULL?logEndpoint:"" );
-    EXTRA_DEBUG_LOG( " %s:good status, indx [%u]\n", __FUNCTION__, certIndx );
+    printf( " %s:good status, indx [%u]\n", __FUNCTION__, certIndx );
     thiscertsel->certStat[certIndx] = CERTSTAT_NOTBAD;
 
     if ( certIndx != 0 ) {
-      EXTRA_DEBUG_LOG( " %s:resetting indx, was [%u]\n", __FUNCTION__, certIndx );
+      printf( " %s:resetting indx, was [%u]\n", __FUNCTION__, certIndx );
       thiscertsel->certIndx = 0;
 
       // get info for first cert
       rdkcertselectorStatus_t certstat = certsel_findCert( thiscertsel );
 
       if ( certstat != certselectorOk ) {
-        ERROR_LOG( " %s:INTERNAL ERROR: cert not found; RETRY_ERROR\n", __FUNCTION__ );
+        printf( " %s:INTERNAL ERROR: cert not found; RETRY_ERROR\n", __FUNCTION__ );
         thiscertsel->state = cssNoCert;
         return RETRY_ERROR;
       }
     }
 
-    EXTRA_DEBUG_LOG( " %s:good status; NO_RETRY\n", __FUNCTION__ );
+    printf( " %s:good status; NO_RETRY\n", __FUNCTION__ );
     thiscertsel->state = cssReadyToGiveCert;
     return NO_RETRY;
 
   } else if ( certsel_chkCertError( curlStat ) == TRY_ANOTHER ) {
     // cert error needs to be logged
-    ERROR_LOG( "curl cert error (%u) [%s]\n", curlStat, logEndpoint!=NULL?logEndpoint:"" );
-    EXTRA_DEBUG_LOG( " %s:curl cert error [%u]\n", __FUNCTION__, curlStat );
+    printf( "curl cert error (%u) [%s]\n", curlStat, logEndpoint!=NULL?logEndpoint:"" );
+    printf( " %s:curl cert error [%u]\n", __FUNCTION__, curlStat );
 
     char *certFile = thiscertsel->certUri;
     // strip off uri scheme "file://"
@@ -525,20 +531,20 @@ rdkcertselectorRetry_t rdkcertselector_setCurlStatus( rdkcertselector_h thiscert
     rdkcertselectorStatus_t retval = certsel_findNextCert( thiscertsel );
     if ( retval != certselectorOk ) {
       // if no cert, reset indx to 0; set state to noCert; return no retry
-      EXTRA_DEBUG_LOG( " %s:next cert not found; NO_RETRY\n", __FUNCTION__ );
+      printf( " %s:next cert not found; NO_RETRY\n", __FUNCTION__ );
       thiscertsel->certIndx = 0;
       thiscertsel->state = cssNoCert;
       return NO_RETRY;
     }
 
     // if next cert found, set state and try another
-    EXTRA_DEBUG_LOG( " %s:cert found, TRY_ANOTHER\n", __FUNCTION__ );
+    printf( " %s:cert found, TRY_ANOTHER\n", __FUNCTION__ );
     thiscertsel->state = cssReadyToGiveCert;
     return TRY_ANOTHER;
 
   } else {
-    DEBUG_LOG( "curl error (%u) [%s]\n", curlStat, logEndpoint!=NULL?logEndpoint:"" );
-    EXTRA_DEBUG_LOG( " %s:curl non-cert error [%u]; NO_RETRY\n", __FUNCTION__, curlStat );
+    printf( "curl error (%u) [%s]\n", curlStat, logEndpoint!=NULL?logEndpoint:"" );
+    printf( " %s:curl non-cert error [%u]; NO_RETRY\n", __FUNCTION__, curlStat );
     thiscertsel->state = cssReadyToGiveCert;
     return NO_RETRY;
   }
@@ -577,15 +583,15 @@ static int includesChars( const char *str, char ch1, char ch2 ) {
 // update the certUri and certCredRef fields, which will be used by the get function
 static rdkcertselectorStatus_t certsel_findCert( rdkcertselector_h thiscertsel ) {
   if ( thiscertsel == NULL ) {
-    DEBUG_LOG( " %s:null argument\n", __FUNCTION__ );
+    printf( " %s:null argument\n", __FUNCTION__ );
     return certselectorBadPointer;
   }
   rdkcertselectorStatus_t retval = certselectorGeneralFailure;
-
+  printf("rdkcertselector_getCert()->certsel_findCert() called\n");
   char *certSelCfg = thiscertsel->certSelPath;
   char *certGroup = thiscertsel->certGroup;
   if ( certSelCfg[0] == '\0' || certGroup[0] == '\0' ) {
-    ERROR_LOG( " %s:argument error [%s|%s]\n", __FUNCTION__, certSelCfg, certGroup );
+    printf( " %s:argument error [%s|%s]\n", __FUNCTION__, certSelCfg, certGroup );
     return certselectorBadArgument;
   }
   size_t grplen = strnlen( certGroup, sizeof( thiscertsel->certGroup ) );
@@ -593,16 +599,16 @@ static rdkcertselectorStatus_t certsel_findCert( rdkcertselector_h thiscertsel )
   // have we surpassed the max number of certs?
   uint16_t certIndx = thiscertsel->certIndx;
   if ( certIndx >= LIST_MAX ) {
-    DEBUG_LOG( " %s:cert index beyond max (%d) for %s\n", __FUNCTION__, LIST_MAX, thiscertsel->certGroup );
+    printf( " %s:cert index beyond max (%d) for %s\n", __FUNCTION__, LIST_MAX, thiscertsel->certGroup );
     return certselectorFileNotFound;
   }
 
   FILE *cfgfp = fopen( certSelCfg, "r" );
   if ( cfgfp == NULL) {
-    ERROR_LOG( " %s:config file, %s, not found\n", __FUNCTION__, certSelCfg );
+    printf( " %s:config file, %s, not found\n", __FUNCTION__, certSelCfg );
     return certselectorFileNotFound;
   }
-
+  printf("rdkcertselector_getCert()->certsel_findCert() opened config file: %s\n", certSelCfg);
   uint16_t loopIndx = 0;
   char cfgline[MAX_LINE_LENGTH+1]; // one extra to check for trunctation
   char *cfgfield = NULL, *cfggrp = NULL;
@@ -618,7 +624,7 @@ static rdkcertselectorStatus_t certsel_findCert( rdkcertselector_h thiscertsel )
 
     // check if line from file was truncated
     if ( cfgline[MAX_LINE_LENGTH-1] != '\0' ) {
-      ERROR_LOG( " %s: config line too long (%c)\n", __FUNCTION__, cfgline[MAX_LINE_LENGTH-1] );
+      printf( " %s: config line too long (%c)\n", __FUNCTION__, cfgline[MAX_LINE_LENGTH-1] );
       retval = certselectorFileError;
       break;
     }
@@ -631,7 +637,7 @@ static rdkcertselectorStatus_t certsel_findCert( rdkcertselector_h thiscertsel )
     // do not allow unexpected whitespace
 
     cfgfield = strtok_r( cfgline, DELIM_STR, &savetok_f ); // 1st field is group
-
+    printf("rdkcertselector_getCert()->certsel_findCert(1st field) cfgfield = %s\n", cfgfield);
     if ( cfgfield != NULL ) {
       // look for group in first field
       int maxcnt = MAX_GRP_CNT;
@@ -640,7 +646,7 @@ static rdkcertselectorStatus_t certsel_findCert( rdkcertselector_h thiscertsel )
           break;
         }
         if ( --maxcnt <= 0 ) {
-          ERROR_LOG( " %s:get maxcnt reached\n", __FUNCTION__ );
+          printf( " %s:get maxcnt reached\n", __FUNCTION__ );
           cfggrp = NULL;
           break;
         }
@@ -659,7 +665,7 @@ static rdkcertselectorStatus_t certsel_findCert( rdkcertselector_h thiscertsel )
           cfgfield = strtok_r( NULL, DELIM_STR, &savetok_f ); // skip 3rd field
         }
         if ( cfgfield == NULL ) {
-          ERROR_LOG( " %s:missing fields (2/3)\n", __FUNCTION__ );
+          printf( " %s:missing fields (2/3)\n", __FUNCTION__ );
           retval = certselectorFileError;
           break;
         }
@@ -672,11 +678,13 @@ static rdkcertselectorStatus_t certsel_findCert( rdkcertselector_h thiscertsel )
           if ( fieldlen < sizeof(thiscertsel->certUri)-1 ) {
             strcpy( thiscertsel->certUri, cfgfield );
             EXTRA_DEBUG_LOG( " %s: uri [%s]\n", __FUNCTION__, thiscertsel->certUri );
+            printf("rdkcertselector_getCert()->certsel_findCert(4th field) cfgfield = %s\n", cfgfield);
             cfgfield = strtok_r( NULL, DELIM_STR, &savetok_f ); // 5th field is Cred reference
             if ( cfgfield != NULL ) {
               fieldlen = strlen( cfgfield );
               if ( fieldlen < sizeof( thiscertsel->certCredRef)-1 ) {
                 strcpy( thiscertsel->certCredRef, cfgfield );
+                printf("rdkcertselector_getCert()->certsel_findCert(5th field) cfgfield = %s\n", cfgfield);
                 EXTRA_DEBUG_LOG( " %s: credref [%s]\n", __FUNCTION__, thiscertsel->certCredRef );
               } else {
                 cfgfield = NULL; // 5th field error
@@ -689,13 +697,14 @@ static rdkcertselectorStatus_t certsel_findCert( rdkcertselector_h thiscertsel )
         }
         // check for error
         if ( cfgfield == NULL ) {
-          ERROR_LOG( " %s:missing fields (4/5)\n", __FUNCTION__ );
+          printf( " %s:missing fields (4/5)\n", __FUNCTION__ );
           retval = certselectorFileError;
           break;
         }
 
         // found one and saved the cert info
         retval = certselectorOk;
+        printf("rdkcertselector_getCert()->certsel_findCert() match found for %s loopIndx = %d\n", certGroup, loopIndx);
         break;
       } // if correct indx
 
@@ -708,7 +717,8 @@ static rdkcertselectorStatus_t certsel_findCert( rdkcertselector_h thiscertsel )
   fclose( cfgfp );
 
   if ( retval == certselectorGeneralFailure ) {
-    EXTRA_DEBUG_LOG( " %s:match not found for %s\n", __FUNCTION__, certGroup );
+    printf( " %s:match not found for %s\n", __FUNCTION__, certGroup );
+    printf("rdkcertselector_getCert()->certsel_findCert() match not found for %s\n", certGroup);
     retval = certselectorFileNotFound;
   }
 
@@ -721,14 +731,16 @@ static rdkcertselectorStatus_t certsel_findCert( rdkcertselector_h thiscertsel )
 // update the certUri and certCredRef fields, which will be used by the get function
 static rdkcertselectorStatus_t certsel_findNextCert( rdkcertselector_h thiscertsel ) {
   if ( thiscertsel == NULL ) {
-    DEBUG_LOG( " %s:null argument\n", __FUNCTION__ );
+    printf( " %s:null argument\n", __FUNCTION__ );
     return certselectorBadPointer;
   }
+  printf("rdkcertselector_getCert()->certsel_findNextCert() called\n");
   // next cert
   thiscertsel->certIndx++;
   thiscertsel->certUri[0] = '\0';
   thiscertsel->certCredRef[0] = '\0';
 
+  printf("rdkcertselector_getCert()->certsel_findNextCert() incremented certIndx to %d\n", thiscertsel->certIndx);  
   // with index increment, find the cert
   return certsel_findCert( thiscertsel );
 }
