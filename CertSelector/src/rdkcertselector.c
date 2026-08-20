@@ -322,11 +322,13 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
     if ( strncmp( certFile, FILESCHEME, sizeof(FILESCHEME)-1 ) == 0 ) {
       certFile += (sizeof(FILESCHEME)-1);
     }
-
+    ERROR_LOG( " %s:<DBG>Trace_1\n", __FUNCTION__ );
     // get date from file
     struct stat fileStat;
     int statret = stat( certFile, &fileStat );
-
+    
+    ERROR_LOG( " %s:<DBG>statret(%u)\n", __FUNCTION__, statret );
+      
     if ( statret != 0 ) {  // file error
       DEBUG_LOG( " %s:cert file not found [%s]\n", __FUNCTION__, certFile );
       EXTRA_DEBUG_LOG( " %s:cert file not found, clear stat [%u], continue?\n", __FUNCTION__, certIndx );
@@ -335,10 +337,11 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
 
       findval = certsel_findNextCert( thiscertsel );  // next cert
       if ( findval != certselectorOk ) {
-        EXTRA_DEBUG_LOG( " %s:next cert not found (%u)\n", __FUNCTION__, findval );
+        ERROR_LOG( " %s:next cert not found (%u)\n", __FUNCTION__, findval );
         retval = certselectorFileNotFound;
         break; // give up
       }
+      ERROR_LOG( " %s:Final Val Trace_2 (%u)\n", __FUNCTION__, findval );
       // next cert
       thisCertUri = thiscertsel->certUri;
       thisCertCredRef = thiscertsel->certCredRef;
@@ -350,30 +353,30 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
 
       // file exists, check time stamp
       time_t modTime = fileStat.st_mtime;
-      EXTRA_DEBUG_LOG( " %s:cert file was bad[%s|%lu]\n", __FUNCTION__, certFile, (unsigned long)modTime );
+      ERROR_LOG( " %s:cert file was bad[%s|%lu]\n", __FUNCTION__, certFile, (unsigned long)modTime );
 
       // file was bad, see if it has changed
       unsigned long badTime = thiscertsel->certStat[certIndx];
       if ( badTime == modTime ) {
         // file did not change, find next cert, continue
-        EXTRA_DEBUG_LOG( " %s:cert file unchanged[%s|%lu]\n", __FUNCTION__, certFile, (unsigned long)modTime );
+        ERROR_LOG( " %s:cert file unchanged[%s|%lu]\n", __FUNCTION__, certFile, (unsigned long)modTime );
 
         retval = certsel_findNextCert( thiscertsel ); // next cert
         if ( retval != certselectorOk ) {
-          EXTRA_DEBUG_LOG( " %s:next cert not found (%u)\n", __FUNCTION__, retval );
+          ERROR_LOG( " %s:next cert not found (%u)\n", __FUNCTION__, retval );
           retval = certselectorFileNotFound;
           break; // give up
         }
 
         thisCertUri = thiscertsel->certUri;
         thisCertCredRef = thiscertsel->certCredRef;
-        EXTRA_DEBUG_LOG( " %s:next cert found (%s|%s), continuing\n", __FUNCTION__, thisCertUri, thisCertCredRef );
+        ERROR_LOG( " %s:next cert found (%s|%s), continuing\n", __FUNCTION__, thisCertUri, thisCertCredRef );
         continue;  // evaluate this next cert
       } else { // file was marked bad, but has changed
 
         // file did change, clear bad status and try it again
         certIndx = thiscertsel->certIndx;  // index may have changed
-        EXTRA_DEBUG_LOG( " %s:cert file changed from [%s|%lu], clear stat [%u], breaking\n", __FUNCTION__, certFile, badTime, certIndx );
+        ERROR_LOG( " %s:cert file changed from [%s|%lu], clear stat [%u], breaking\n", __FUNCTION__, certFile, badTime, certIndx );
         thiscertsel->certStat[certIndx] = CERTSTAT_NOTBAD;  // cert status is unknown
       } // end else file changed
       thisCertUri = thiscertsel->certUri;
@@ -381,12 +384,12 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
       retval = certselectorOk;
       // drop down and get passcode, then break;
     } else { // found the file that's not marked bad
-      EXTRA_DEBUG_LOG( " %s:file not marked bad\n", __FUNCTION__ );
+      ERROR_LOG( " %s:file not marked bad\n", __FUNCTION__ );
       retval = certselectorOk;
     }
-
+    
     if ( retval == certselectorOk ) {
-      EXTRA_DEBUG_LOG( " %s:get passcode (%u)\n", __FUNCTION__, retval );
+      ERROR_LOG( " %s:get passcode (%u)\n", __FUNCTION__, retval );
       // file exists and is not the same as bad (or was not marked as bad), so get the passcode and return them
       char *pc = NULL;
       size_t pcsz = 0;
@@ -439,7 +442,7 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
     if ( thiscertsel->certStat[certIndx] != CERTSTAT_NOTBAD ) {
       ERROR_LOG( " %s:INTERNAL ERROR: current stat should not be %lu\n", __FUNCTION__,  thiscertsel->certStat[certIndx] );
     }
-    EXTRA_DEBUG_LOG( " %s:returning [%s:%s] index [%u]\n", __FUNCTION__, thiscertsel->certUri, "*****", certIndx );
+    ERROR_LOG( " %s:returning [%s:%s] index [%u]\n", __FUNCTION__, thiscertsel->certUri, "*****", certIndx );
   }
   EXTRA_DEBUG_LOG( " %s:returning %d\n", __FUNCTION__, retval );
   return retval;
