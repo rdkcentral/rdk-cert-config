@@ -330,8 +330,8 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
     ERROR_LOG( " %s:<DBG>statret(%u)\n", __FUNCTION__, statret );
       
     if ( statret != 0 ) {  // file error
-      DEBUG_LOG( " %s:cert file not found [%s]\n", __FUNCTION__, certFile );
-      EXTRA_DEBUG_LOG( " %s:cert file not found, clear stat [%u], continue?\n", __FUNCTION__, certIndx );
+      ERROR_LOG( " %s:cert file not found [%s]\n", __FUNCTION__, certFile );
+      ERROR_LOG( " %s:cert file not found, clear stat [%u], continue?\n", __FUNCTION__, certIndx );
 
       thiscertsel->certStat[certIndx] = CERTSTAT_NOTBAD; // file does not exist, clear certstat for if it appears again
 
@@ -407,7 +407,7 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
             thiscertsel->certPass[pcsz] = '\0';  // data coming in does not assume string so need to null terminate
             rdkconfig_freeStr( &pc, pcsz );
             retval = certselectorOk; // found it
-            EXTRA_DEBUG_LOG( " %s:got the passcode\n", __FUNCTION__ );
+            ERROR_LOG( " %s:got the passcode\n", __FUNCTION__ );
             break; // found it, finish up
           } else {
             ERROR_LOG( " %s:pc did not fit (%zu)\n", __FUNCTION__, pcsz );
@@ -416,11 +416,11 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
         } // pc not null
       } // if rdkconfig_get is ok
 
-      DEBUG_LOG( " %s:credential reference not found (%u)\n", __FUNCTION__, retval );
+      ERROR_LOG( " %s:credential reference not found (%u)\n", __FUNCTION__, retval );
       // could not retrieve the passcode, get next cert
       retval = certsel_findNextCert( thiscertsel );
       if ( retval != certselectorOk ) {
-        EXTRA_DEBUG_LOG( " %s:next cert not found (%u)\n", __FUNCTION__, retval );
+        ERROR_LOG( " %s:next cert not found (%u)\n", __FUNCTION__, retval );
         retval = certselectorFileNotFound;
         break; // give up
       }
