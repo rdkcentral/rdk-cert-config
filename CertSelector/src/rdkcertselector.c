@@ -310,8 +310,7 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
 
   printf( "rdkcertselector_getCert()->thisCertUri = %s\n", thisCertUri );
   printf( "rdkcertselector_getCert()->thisCertCredRef = %s\n", thisCertCredRef );
-  printf( "rdkcertselector_getCert()->thisCertStat = %d\n", thiscertsel->certStat[thiscertsel->certIndx] );
-
+  
   if ( thisCertUri[0] == '\0' || thisCertCredRef[0] == '\0' ) {
     printf( " %s:invalid argument(s) [%s|%s]\n", __FUNCTION__, thisCertUri, thisCertCredRef );
     return certselectorBadArgument;
