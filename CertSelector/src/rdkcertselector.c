@@ -303,7 +303,7 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
     printf( " %s:unexpected state, %d!=%d\n", __FUNCTION__, thiscertsel->state, cssReadyToGiveCert );
     return certselectorGeneralFailure;
   }
-  printf( "rdkcertselector_getCert()->current state thiscertsel->state = %d cssReadyToGiveCert\n", thiscertsel->state, cssReadyToGiveCert);
+  printf( "rdkcertselector_getCert()->current state thiscertsel->state = %d cssReadyToGiveCert\n", thiscertsel->state);
 
   char *thisCertUri = thiscertsel->certUri;
   char *thisCertCredRef = thiscertsel->certCredRef;
