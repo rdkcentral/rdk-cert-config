@@ -433,12 +433,12 @@ static rdkcertlocatorStatus_t certloc_locateCert( rdkcertlocator_h thiscertloc, 
       if ( cfgfield != NULL ) {
         size_t fieldlen = strlen( cfgfield );
         if ( fieldlen < (sizeof(thiscertloc->certUri)-1) ) {
-	  memcpy( thiscertloc->certUri, cfgfield, fieldlen + 1 );
+	   memcpy( thiscertloc->certUri, cfgfield, fieldlen + 1 );
           cfgfield = strtok_r( NULL, DELIM_STR, &savetok1 ); // 5th field is Cred reference
           if ( cfgfield != NULL ) {
             fieldlen = strlen( cfgfield );
             if ( fieldlen < (sizeof(thiscertloc->certCredRef)-1) ) {
-	      memcpy( thiscertloc->certCredRef, cfgfield, fieldlen + 1 );
+              memcpy( thiscertloc->certCredRef, cfgfield, fieldlen + 1 );
             } else {
               cfgfield = NULL; // 5th field error
               thiscertloc->certUri[0] = '\0'; // 5th field failure so empty 4th
