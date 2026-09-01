@@ -722,13 +722,13 @@ static rdkcertselectorStatus_t certsel_findCert( rdkcertselector_h thiscertsel )
         if ( cfgfield != NULL ) {
           size_t fieldlen = strlen( cfgfield );
           if ( fieldlen < sizeof(thiscertsel->certUri)-1 ) {
-	     memcpy( thiscertsel->certUri, cfgfield, fieldlen + 1 );
+            memcpy( thiscertsel->certUri, cfgfield, fieldlen + 1 );
             EXTRA_DEBUG_LOG( " %s: uri [%s]\n", __FUNCTION__, thiscertsel->certUri );
             cfgfield = strtok_r( NULL, DELIM_STR, &savetok_f ); // 5th field is Cred reference
             if ( cfgfield != NULL ) {
               fieldlen = strlen( cfgfield );
               if ( fieldlen < sizeof( thiscertsel->certCredRef)-1 ) {
-		 memcpy( thiscertsel->certCredRef, cfgfield, fieldlen + 1 );
+                memcpy( thiscertsel->certCredRef, cfgfield, fieldlen + 1 );
                 EXTRA_DEBUG_LOG( " %s: credref [%s]\n", __FUNCTION__, thiscertsel->certCredRef );
               } else {
                 cfgfield = NULL; // 5th field error
