@@ -22,7 +22,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/RdkConfigApi/include -I$(top_builddir)
 if TEST_RDK_CERTS
 AM_CPPFLAGS += -DTEST_RDK_CERTS
 endif
-AM_CFLAGS = -Werror -Wall -Os $(CFLAGS)
+AM_CFLAGS = -Werror -Wall -Os -Wno-error=format $(CFLAGS)
 
 # Source files for GetConfigFile binary
 bin_PROGRAMS = GetConfigFile
