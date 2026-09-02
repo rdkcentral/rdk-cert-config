@@ -108,10 +108,10 @@ static int GetConfigFile( const char *arg1, const char *arg2 ) {
     if ( rdkconfig_free( &membuff1, memsz ) != RDKCONFIG_OK ) {
       fprintf( stderr, "%s: mem error\n", cmd );
     }
-
-    printf("Test Coverity \n");
-    
   }
+
+  printf("Test Coverity \n %s");
+  
   return exitcd;
 }
 #define CREDSZ_LG 33000
