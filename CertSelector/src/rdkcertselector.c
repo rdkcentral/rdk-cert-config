@@ -147,7 +147,8 @@ rdkcertselector_h rdkcertselector_new(const char *certsel_path, const char *hrot
     free( thiscertsel );
     return NULL;
   }
-  strcpy( thiscertsel->certSelPath, certsel_path );
+  strncpy( thiscertsel->certSelPath, certsel_path, sizeof(thiscertsel->certSelPath) - 1 );
+  thiscertsel->certSelPath[sizeof(thiscertsel->certSelPath) - 1] = '\0';
 
   // hardware root of trust properties file path from argument or use default
   if ( hrotprop_path == DEFAULT_HROT ) hrotprop_path = DEFAULT_HROTPROP_PATH;
@@ -159,7 +160,8 @@ rdkcertselector_h rdkcertselector_new(const char *certsel_path, const char *hrot
     free( thiscertsel );
     return NULL;
   }
-  strcpy( thiscertsel->certGroup, cert_group );
+  strncpy( thiscertsel->certGroup, cert_group, sizeof(thiscertsel->certGroup) - 1 );
+  thiscertsel->certGroup[sizeof(thiscertsel->certGroup) - 1] = '\0';
 
   // open config file and look for cert group in first column
   thiscertsel->certIndx = 0;
@@ -349,14 +351,14 @@ rdkcertselectorStatus_t rdkcertselector_getCert( rdkcertselector_h thiscertsel, 
     } else if ( thiscertsel->certStat[certIndx] != CERTSTAT_NOTBAD ) {
 
       // file exists, check time stamp
-      time_t modTime = fileStat.st_mtime;
-      EXTRA_DEBUG_LOG( " %s:cert file was bad[%s|%lu]\n", __FUNCTION__, certFile, (unsigned long)modTime );
+      unsigned long modTime = (unsigned long)fileStat.st_mtime;
+      EXTRA_DEBUG_LOG( " %s:cert file was bad[%s|%lu]\n", __FUNCTION__, certFile, modTime );
 
       // file was bad, see if it has changed
       unsigned long badTime = thiscertsel->certStat[certIndx];
       if ( badTime == modTime ) {
         // file did not change, find next cert and continue
-        EXTRA_DEBUG_LOG( " %s:cert file unchanged[%s|%lu]\n", __FUNCTION__, certFile, (unsigned long)modTime );
+        EXTRA_DEBUG_LOG( " %s:cert file unchanged[%s|%lu]\n", __FUNCTION__, certFile, modTime );
 
         retval = certsel_findNextCert( thiscertsel ); // next cert
         if ( retval != certselectorOk ) {
@@ -720,13 +722,13 @@ static rdkcertselectorStatus_t certsel_findCert( rdkcertselector_h thiscertsel )
         if ( cfgfield != NULL ) {
           size_t fieldlen = strlen( cfgfield );
           if ( fieldlen < sizeof(thiscertsel->certUri)-1 ) {
-            strcpy( thiscertsel->certUri, cfgfield );
+            memcpy( thiscertsel->certUri, cfgfield, fieldlen + 1 );
             EXTRA_DEBUG_LOG( " %s: uri [%s]\n", __FUNCTION__, thiscertsel->certUri );
             cfgfield = strtok_r( NULL, DELIM_STR, &savetok_f ); // 5th field is Cred reference
             if ( cfgfield != NULL ) {
               fieldlen = strlen( cfgfield );
               if ( fieldlen < sizeof( thiscertsel->certCredRef)-1 ) {
-                strcpy( thiscertsel->certCredRef, cfgfield );
+                memcpy( thiscertsel->certCredRef, cfgfield, fieldlen + 1 );
                 EXTRA_DEBUG_LOG( " %s: credref [%s]\n", __FUNCTION__, thiscertsel->certCredRef );
               } else {
                 cfgfield = NULL; // 5th field error
@@ -820,8 +822,7 @@ static unsigned long filetime( const char *fname ) {
   struct stat fileStat;
   int statret = stat( fname, &fileStat );
   if ( statret == 0 ) {
-    time_t modTime = fileStat.st_mtime;
-    retval = (unsigned long)modTime;
+    retval = (unsigned long)fileStat.st_mtime;
   }
   return retval;
 }
