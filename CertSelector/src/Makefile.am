@@ -33,7 +33,7 @@ lib_LTLIBRARIES = libRdkCertSelector.la
 
 libRdkCertSelector_la_SOURCES = rdkcertselector.c
 libRdkCertSelector_la_CFLAGS = $(AM_CFLAGS)
-libRdkCertSelector_la_LDFLAGS = -no-undefined -shared
+libRdkCertSelector_la_LDFLAGS = -no-undefined -shared -lcrypto
 libRdkCertSelector_la_includedir = ${includedir}
 libRdkCertSelector_la_include_HEADERS = ../include/rdkcertselector.h
 if !CSPC_RDKCONFIG_SUPPORT_ENABLED
