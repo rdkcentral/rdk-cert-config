@@ -15,6 +15,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+#reqrwe
+
 if CSPC_RDKCONFIG_SUPPORT_ENABLED
 SUBDIRS = CertSelector 
 else
