@@ -124,7 +124,9 @@ rdkcertlocator_h rdkcertlocator_new(const char *certsel_path, const char *hrotpr
   thiscertloc->reserved1 = CHK_RESERVED1;
 
   // length checked above, just cpy
-  strcpy( thiscertloc->certSelPath, certsel_path );
+  strncpy( thiscertloc->certSelPath, certsel_path, sizeof(thiscertloc->certSelPath) - 1 );
+  thiscertloc->certSelPath[sizeof(thiscertloc->certSelPath) - 1] = '\0';
+
 
   // hardware root of trust properties file path from argument or use default
   if ( hrotprop_path == DEFAULT_HROT ) hrotprop_path = DEFAULT_HROTPROP_PATH;
@@ -161,8 +163,8 @@ rdkcertlocator_h rdkcertlocator_new(const char *certsel_path, const char *hrotpr
 
         // compare first part of line for engine tag
         if ( strncmp( hrotline, ENGINETAG, sizeof(ENGINETAG)-1 ) == 0 ) {
-          strncpy( thiscertloc->hrotEngine, (hrotline+sizeof(ENGINETAG)-1), sizeof(thiscertloc->hrotEngine) );
-          thiscertloc->hrotEngine[ENGINE_MAX] = '\0'; // terminate if necessary to truncate
+          strncpy( thiscertloc->hrotEngine, (hrotline+sizeof(ENGINETAG)-1), sizeof(thiscertloc->hrotEngine) - 1 );
+          thiscertloc->hrotEngine[sizeof(thiscertloc->hrotEngine) - 1] = '\0'; // terminate if necessary to truncate
           EXTRA_DEBUG_LOG( " %s:hroteng[%s], hrotpath[%s]\n", __FUNCTION__, thiscertloc->hrotEngine, hrotprop_path );
           break;
         }
@@ -431,12 +433,12 @@ static rdkcertlocatorStatus_t certloc_locateCert( rdkcertlocator_h thiscertloc, 
       if ( cfgfield != NULL ) {
         size_t fieldlen = strlen( cfgfield );
         if ( fieldlen < (sizeof(thiscertloc->certUri)-1) ) {
-          strcpy( thiscertloc->certUri, cfgfield );
+          memcpy( thiscertloc->certUri, cfgfield, fieldlen + 1 );
           cfgfield = strtok_r( NULL, DELIM_STR, &savetok1 ); // 5th field is Cred reference
           if ( cfgfield != NULL ) {
             fieldlen = strlen( cfgfield );
             if ( fieldlen < (sizeof(thiscertloc->certCredRef)-1) ) {
-              strcpy( thiscertloc->certCredRef, cfgfield );
+              memcpy( thiscertloc->certCredRef, cfgfield, fieldlen + 1 );
             } else {
               cfgfield = NULL; // 5th field error
               thiscertloc->certUri[0] = '\0'; // 5th field failure so empty 4th
