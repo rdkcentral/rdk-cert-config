@@ -111,6 +111,7 @@ static int GetConfigFile( const char *arg1, const char *arg2 ) {
   }
 
   printf("Test Coverity \n %s");
+  printf("Test Coverity 2 \n %s")
   
   return exitcd;
 }
